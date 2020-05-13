@@ -10015,8 +10015,6 @@ yynewstate:
 				NewTable:       yyS[yypt-1].item.(*ast.TableName),
 				WithValidation: yyS[yypt-0].item.(bool),
 			}
-			yylex.AppendError(yylex.Errorf("TiDB does not support EXCHANGE PARTITION now, it would be parsed but ignored."))
-			parser.lastErrorAsWarn()
 		}
 	case 24:
 		{
