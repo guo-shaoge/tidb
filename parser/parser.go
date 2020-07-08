@@ -9900,8 +9900,6 @@ yynewstate:
 			parser.yyVAL.item = &ast.AlterTableSpec{
 				Tp: ast.AlterTableRemovePartitioning,
 			}
-			yylex.AppendError(yylex.Errorf("The REMOVE PARTITIONING clause is parsed but ignored by all storage engines."))
-			parser.lastErrorAsWarn()
 		}
 	case 7:
 		{
