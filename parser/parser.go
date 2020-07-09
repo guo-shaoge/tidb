@@ -10102,8 +10102,6 @@ yynewstate:
 				ret.PartitionNames = yyS[yypt-0].item.([]model.CIStr)
 			}
 			parser.yyVAL.item = ret
-			yylex.AppendError(yylex.Errorf("The OPTIMIZE PARTITION clause is parsed but ignored by all storage engines."))
-			parser.lastErrorAsWarn()
 		}
 	case 26:
 		{
@@ -10117,8 +10115,6 @@ yynewstate:
 				ret.PartitionNames = yyS[yypt-0].item.([]model.CIStr)
 			}
 			parser.yyVAL.item = ret
-			yylex.AppendError(yylex.Errorf("The REPAIR PARTITION clause is parsed but ignored by all storage engines."))
-			parser.lastErrorAsWarn()
 		}
 	case 27:
 		{
@@ -10178,8 +10174,6 @@ yynewstate:
 				ret.PartitionNames = yyS[yypt-0].item.([]model.CIStr)
 			}
 			parser.yyVAL.item = ret
-			yylex.AppendError(yylex.Errorf("REBUILD PARTITION syntax is parsed but not implement for now."))
-			parser.lastErrorAsWarn()
 		}
 	case 32:
 		{
