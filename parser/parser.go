@@ -16766,6 +16766,10 @@ yynewstate:
 			// TODO: check flen 0
 			x := types.NewFieldType(yyS[yypt-2].item.(byte))
 			x.Flen = yyS[yypt-1].item.(int)
+			if yyS[yypt-1].item.(int) != types.UnspecifiedLength {
+				yylex.AppendError(yylex.Errorf("Integer display width is deprecated and will be removed in a future release."))
+				parser.lastErrorAsWarn()
+			}
 			for _, o := range yyS[yypt-0].item.([]*ast.TypeOpt) {
 				if o.IsUnsigned {
 					x.Flag |= mysql.UnsignedFlag
