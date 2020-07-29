@@ -16766,7 +16766,7 @@ yynewstate:
 			// TODO: check flen 0
 			x := types.NewFieldType(yyS[yypt-2].item.(byte))
 			x.Flen = yyS[yypt-1].item.(int)
-			if yyS[yypt-1].item.(int) != types.UnspecifiedLength {
+			if yyS[yypt-1].item.(int) != types.UnspecifiedLength && types.TiDBStrictIntegerDisplayWidth {
 				yylex.AppendError(yylex.Errorf("Integer display width is deprecated and will be removed in a future release."))
 				parser.lastErrorAsWarn()
 			}
