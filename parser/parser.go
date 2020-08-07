@@ -10088,20 +10088,10 @@ yynewstate:
 		}
 	case 9:
 		{
-			cnt := yyS[yypt-0].item.(uint64)
-			if cnt <= 0 {
-				yylex.AppendError(yylex.Errorf("Get a non-positive count for placement rules: %s", cnt))
-				return 1
-			}
-			parser.yyVAL.item = cnt
+			parser.yyVAL.item = yyS[yypt-0].item
 		}
 	case 10:
 		{
-			// [+|-]x=
-			if len(yyS[yypt-0].ident) < 3 {
-				yylex.AppendError(yylex.Errorf("Get empty/invalid label constraints: %s", yyS[yypt-0].ident))
-				return 1
-			}
 			parser.yyVAL.item = yyS[yypt-0].ident
 		}
 	case 11:
@@ -10153,7 +10143,7 @@ yynewstate:
 	case 18:
 		{
 			spec := yyS[yypt-1].item.(*ast.PlacementSpec)
-			if spec.Role != 0 {
+			if spec.Role != ast.PlacementRoleNone {
 				yylex.AppendError(yylex.Errorf("Duplicate placement option ROLE"))
 				return 1
 			}
