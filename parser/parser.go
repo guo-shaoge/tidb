@@ -10088,7 +10088,12 @@ yynewstate:
 		}
 	case 9:
 		{
-			parser.yyVAL.item = yyS[yypt-0].item
+			cnt := yyS[yypt-0].item.(uint64)
+			if cnt == 0 {
+				yylex.AppendError(yylex.Errorf("Invalid placement option REPLICAS, it is not allowed to be 0"))
+				return 1
+			}
+			parser.yyVAL.item = cnt
 		}
 	case 10:
 		{
@@ -10123,7 +10128,7 @@ yynewstate:
 	case 16:
 		{
 			spec := yyS[yypt-1].item.(*ast.PlacementSpec)
-			if spec.Replicas > 0 {
+			if spec.Replicas != 0 {
 				yylex.AppendError(yylex.Errorf("Duplicate placement option REPLICAS"))
 				return 1
 			}
