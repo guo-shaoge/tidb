@@ -16879,7 +16879,7 @@ yynewstate:
 			x := types.NewFieldType(yyS[yypt-2].item.(byte))
 			x.Flen = yyS[yypt-1].item.(int)
 			if yyS[yypt-1].item.(int) != types.UnspecifiedLength && types.TiDBStrictIntegerDisplayWidth {
-				yylex.AppendError(yylex.Errorf("Integer display width is deprecated and will be removed in a future release."))
+				yylex.AppendError(ErrWarnDeprecatedIntegerDisplayWidth)
 				parser.lastErrorAsWarn()
 			}
 			for _, o := range yyS[yypt-0].item.([]*ast.TypeOpt) {
