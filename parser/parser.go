@@ -13585,6 +13585,7 @@ yynewstate:
 			x := types.NewFieldType(mysql.TypeString)
 			x.Charset = charset.CharsetBin
 			x.Collate = charset.CharsetBin
+			x.Flag |= mysql.BinaryFlag
 			parser.yyVAL.expr = &ast.FuncCastExpr{
 				Expr:         yyS[yypt-0].expr,
 				Tp:           x,
@@ -13602,10 +13603,13 @@ yynewstate:
 			if tp.Decimal == types.UnspecifiedLength {
 				tp.Decimal = defaultDecimal
 			}
+			explicitCharset := parser.explicitCharset
+			parser.explicitCharset = false
 			parser.yyVAL.expr = &ast.FuncCastExpr{
-				Expr:         yyS[yypt-3].expr,
-				Tp:           tp,
-				FunctionType: ast.CastFunction,
+				Expr:            yyS[yypt-3].expr,
+				Tp:              tp,
+				FunctionType:    ast.CastFunction,
+				ExplicitCharSet: explicitCharset,
 			}
 		}
 	case 1091:
@@ -13630,10 +13634,13 @@ yynewstate:
 			if tp.Decimal == types.UnspecifiedLength {
 				tp.Decimal = defaultDecimal
 			}
+			explicitCharset := parser.explicitCharset
+			parser.explicitCharset = false
 			parser.yyVAL.expr = &ast.FuncCastExpr{
-				Expr:         yyS[yypt-3].expr,
-				Tp:           tp,
-				FunctionType: ast.CastConvertFunction,
+				Expr:            yyS[yypt-3].expr,
+				Tp:              tp,
+				FunctionType:    ast.CastConvertFunction,
+				ExplicitCharSet: explicitCharset,
 			}
 		}
 	case 1093:
@@ -14354,10 +14361,19 @@ yynewstate:
 			x.Charset = yyS[yypt-0].item.(*ast.OptBinary).Charset
 			if yyS[yypt-0].item.(*ast.OptBinary).IsBinary {
 				x.Flag |= mysql.BinaryFlag
-			}
-			if x.Charset == "" {
-				x.Charset = mysql.DefaultCharset
-				x.Collate = mysql.DefaultCollationName
+				x.Charset = charset.CharsetBin
+				x.Collate = charset.CollationBin
+			} else if x.Charset != "" {
+				co, err := charset.GetDefaultCollation(x.Charset)
+				if err != nil {
+					yylex.AppendError(yylex.Errorf("Get collation error for charset: %s", x.Charset))
+					return 1
+				}
+				x.Collate = co
+				parser.explicitCharset = true
+			} else {
+				x.Charset = parser.charset
+				x.Collate = parser.collation
 			}
 			parser.yyVAL.item = x
 		}
