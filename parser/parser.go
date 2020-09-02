@@ -17243,9 +17243,10 @@ yynewstate:
 			x := types.NewFieldType(mysql.TypeEnum)
 			x.Elems = yyS[yypt-2].item.([]string)
 			fieldLen := -1 // enum_flen = max(ele_flen)
-			for _, e := range x.Elems {
-				if len(e) > fieldLen {
-					fieldLen = len(e)
+			for i := range x.Elems {
+				x.Elems[i] = strings.TrimRight(x.Elems[i], " ")
+				if len(x.Elems[i]) > fieldLen {
+					fieldLen = len(x.Elems[i])
 				}
 			}
 			x.Flen = fieldLen
@@ -17261,8 +17262,9 @@ yynewstate:
 			x := types.NewFieldType(mysql.TypeSet)
 			x.Elems = yyS[yypt-2].item.([]string)
 			fieldLen := len(x.Elems) - 1 // set_flen = sum(ele_flen) + number_of_ele - 1
-			for _, e := range x.Elems {
-				fieldLen += len(e)
+			for i := range x.Elems {
+				x.Elems[i] = strings.TrimRight(x.Elems[i], " ")
+				fieldLen += len(x.Elems[i])
 			}
 			x.Flen = fieldLen
 			opt := yyS[yypt-0].item.(*ast.OptBinary)
