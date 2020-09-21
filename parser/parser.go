@@ -15492,11 +15492,7 @@ yynewstate:
 			setOprList1 := yyS[yypt-5].item.([]ast.Node)
 			setOprList2 := yyS[yypt-2].item.([]ast.Node)
 			if sel, isSelect := setOprList1[len(setOprList1)-1].(*ast.SelectStmt); isSelect && !sel.IsInBraces {
-				endOffset := parser.endOffset(&yyS[yypt-3])
-				parser.setLastSelectFieldText(sel, endOffset)
-			}
-			if sel, isSelect := setOprList2[0].(*ast.SelectStmt); isSelect && !sel.IsInBraces && len(setOprList2) == 1 {
-				endOffset := parser.endOffset(&yyS[yypt-1])
+				endOffset := parser.endOffset(&yyS[yypt-4])
 				parser.setLastSelectFieldText(sel, endOffset)
 			}
 			nextSetOprList := &ast.SetOprSelectList{Selects: setOprList2}
@@ -15511,11 +15507,7 @@ yynewstate:
 			setOprList1 := yyS[yypt-5].item.([]ast.Node)
 			setOprList2 := yyS[yypt-2].item.([]ast.Node)
 			if sel, isSelect := setOprList1[len(setOprList1)-1].(*ast.SelectStmt); isSelect && !sel.IsInBraces {
-				endOffset := parser.endOffset(&yyS[yypt-3])
-				parser.setLastSelectFieldText(sel, endOffset)
-			}
-			if sel, isSelect := setOprList2[0].(*ast.SelectStmt); isSelect && !sel.IsInBraces && len(setOprList2) == 1 {
-				endOffset := parser.endOffset(&yyS[yypt-1])
+				endOffset := parser.endOffset(&yyS[yypt-4])
 				parser.setLastSelectFieldText(sel, endOffset)
 			}
 			nextSetOprList := &ast.SetOprSelectList{Selects: setOprList2}
@@ -15530,11 +15522,7 @@ yynewstate:
 			setOprList1 := yyS[yypt-6].item.([]ast.Node)
 			setOprList2 := yyS[yypt-3].item.([]ast.Node)
 			if sel, isSelect := setOprList1[len(setOprList1)-1].(*ast.SelectStmt); isSelect && !sel.IsInBraces {
-				endOffset := parser.endOffset(&yyS[yypt-4])
-				parser.setLastSelectFieldText(sel, endOffset)
-			}
-			if sel, isSelect := setOprList2[0].(*ast.SelectStmt); isSelect && !sel.IsInBraces && len(setOprList2) == 1 {
-				endOffset := parser.endOffset(&yyS[yypt-2])
+				endOffset := parser.endOffset(&yyS[yypt-5])
 				parser.setLastSelectFieldText(sel, endOffset)
 			}
 			nextSetOprList := &ast.SetOprSelectList{Selects: setOprList2}
