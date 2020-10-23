@@ -13672,7 +13672,7 @@ yynewstate:
 		}
 	case 1079:
 		{
-			parser.yyVAL.expr = &ast.UnaryOperationExpr{Op: opcode.Not, V: yyS[yypt-0].expr}
+			parser.yyVAL.expr = &ast.UnaryOperationExpr{Op: opcode.Not2, V: yyS[yypt-0].expr}
 		}
 	case 1080:
 		{
@@ -13692,7 +13692,7 @@ yynewstate:
 		}
 	case 1084:
 		{
-			parser.yyVAL.expr = &ast.UnaryOperationExpr{Op: opcode.Not, V: yyS[yypt-0].expr}
+			parser.yyVAL.expr = &ast.UnaryOperationExpr{Op: opcode.Not2, V: yyS[yypt-0].expr}
 		}
 	case 1086:
 		{
