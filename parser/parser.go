@@ -18941,6 +18941,8 @@ yynewstate:
 
 	}
 
+	yySetOffset(parser.yyVAL, parser.yyVAL.offset)
+
 	if yyEx != nil && yyEx.Reduced(r, exState, parser.yyVAL) {
 		return -1
 	}
