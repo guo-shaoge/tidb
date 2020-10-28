@@ -10976,8 +10976,6 @@ yynewstate:
 	case 111:
 		{
 			parser.yyVAL.statement = &ast.RenameTableStmt{
-				OldTable:      yyS[yypt-0].item.([]*ast.TableToTable)[0].OldTable,
-				NewTable:      yyS[yypt-0].item.([]*ast.TableToTable)[0].NewTable,
 				TableToTables: yyS[yypt-0].item.([]*ast.TableToTable),
 			}
 		}
