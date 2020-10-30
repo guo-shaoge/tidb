@@ -11563,9 +11563,10 @@ yynewstate:
 	case 226:
 		{
 			c := &ast.Constraint{
-				Tp:   ast.ConstraintPrimaryKey,
-				Keys: yyS[yypt-2].item.([]*ast.IndexPartSpecification),
-				Name: yyS[yypt-4].item.([]interface{})[0].(string),
+				Tp:           ast.ConstraintPrimaryKey,
+				Keys:         yyS[yypt-2].item.([]*ast.IndexPartSpecification),
+				Name:         yyS[yypt-4].item.([]interface{})[0].(*ast.NullString).String,
+				IsEmptyIndex: yyS[yypt-4].item.([]interface{})[0].(*ast.NullString).Empty,
 			}
 			if yyS[yypt-0].item != nil {
 				c.Option = yyS[yypt-0].item.(*ast.IndexOption)
@@ -11581,9 +11582,10 @@ yynewstate:
 	case 227:
 		{
 			c := &ast.Constraint{
-				Tp:   ast.ConstraintFulltext,
-				Keys: yyS[yypt-2].item.([]*ast.IndexPartSpecification),
-				Name: yyS[yypt-4].ident,
+				Tp:           ast.ConstraintFulltext,
+				Keys:         yyS[yypt-2].item.([]*ast.IndexPartSpecification),
+				Name:         yyS[yypt-4].item.(*ast.NullString).String,
+				IsEmptyIndex: yyS[yypt-4].item.(*ast.NullString).Empty,
 			}
 			if yyS[yypt-0].item != nil {
 				c.Option = yyS[yypt-0].item.(*ast.IndexOption)
@@ -11593,14 +11595,15 @@ yynewstate:
 	case 228:
 		{
 			c := &ast.Constraint{
-				IfNotExists: yyS[yypt-5].item.(bool),
-				Tp:          ast.ConstraintIndex,
-				Keys:        yyS[yypt-2].item.([]*ast.IndexPartSpecification),
+				IfNotExists:  yyS[yypt-5].item.(bool),
+				Tp:           ast.ConstraintIndex,
+				Keys:         yyS[yypt-2].item.([]*ast.IndexPartSpecification),
+				Name:         yyS[yypt-4].item.([]interface{})[0].(*ast.NullString).String,
+				IsEmptyIndex: yyS[yypt-4].item.([]interface{})[0].(*ast.NullString).Empty,
 			}
 			if yyS[yypt-0].item != nil {
 				c.Option = yyS[yypt-0].item.(*ast.IndexOption)
 			}
-			c.Name = yyS[yypt-4].item.([]interface{})[0].(string)
 			if indexType := yyS[yypt-4].item.([]interface{})[1]; indexType != nil {
 				if c.Option == nil {
 					c.Option = &ast.IndexOption{}
@@ -11612,13 +11615,15 @@ yynewstate:
 	case 229:
 		{
 			c := &ast.Constraint{
-				Tp:   ast.ConstraintUniq,
-				Keys: yyS[yypt-2].item.([]*ast.IndexPartSpecification),
+				Tp:           ast.ConstraintUniq,
+				Keys:         yyS[yypt-2].item.([]*ast.IndexPartSpecification),
+				Name:         yyS[yypt-4].item.([]interface{})[0].(*ast.NullString).String,
+				IsEmptyIndex: yyS[yypt-4].item.([]interface{})[0].(*ast.NullString).Empty,
 			}
 			if yyS[yypt-0].item != nil {
 				c.Option = yyS[yypt-0].item.(*ast.IndexOption)
 			}
-			c.Name = yyS[yypt-4].item.([]interface{})[0].(string)
+
 			if indexType := yyS[yypt-4].item.([]interface{})[1]; indexType != nil {
 				if c.Option == nil {
 					c.Option = &ast.IndexOption{}
@@ -11630,11 +11635,12 @@ yynewstate:
 	case 230:
 		{
 			parser.yyVAL.item = &ast.Constraint{
-				IfNotExists: yyS[yypt-5].item.(bool),
-				Tp:          ast.ConstraintForeignKey,
-				Keys:        yyS[yypt-2].item.([]*ast.IndexPartSpecification),
-				Name:        yyS[yypt-4].ident,
-				Refer:       yyS[yypt-0].item.(*ast.ReferenceDef),
+				IfNotExists:  yyS[yypt-5].item.(bool),
+				Tp:           ast.ConstraintForeignKey,
+				Keys:         yyS[yypt-2].item.([]*ast.IndexPartSpecification),
+				Name:         yyS[yypt-4].item.(*ast.NullString).String,
+				Refer:        yyS[yypt-0].item.(*ast.ReferenceDef),
+				IsEmptyIndex: yyS[yypt-4].item.(*ast.NullString).Empty,
 			}
 		}
 	case 231:
@@ -13214,7 +13220,17 @@ yynewstate:
 		}
 	case 566:
 		{
-			parser.yyVAL.ident = ""
+			parser.yyVAL.item = &ast.NullString{
+				String: "",
+				Empty:  false,
+			}
+		}
+	case 567:
+		{
+			parser.yyVAL.item = &ast.NullString{
+				String: yyS[yypt-0].ident,
+				Empty:  len(yyS[yypt-0].ident) == 0,
+			}
 		}
 	case 568:
 		{
@@ -13276,15 +13292,15 @@ yynewstate:
 		}
 	case 575:
 		{
-			parser.yyVAL.item = []interface{}{yyS[yypt-0].ident, nil}
+			parser.yyVAL.item = []interface{}{yyS[yypt-0].item, nil}
 		}
 	case 576:
 		{
-			parser.yyVAL.item = []interface{}{yyS[yypt-2].ident, yyS[yypt-0].item}
+			parser.yyVAL.item = []interface{}{yyS[yypt-2].item, yyS[yypt-0].item}
 		}
 	case 577:
 		{
-			parser.yyVAL.item = []interface{}{yyS[yypt-2].ident, yyS[yypt-0].item}
+			parser.yyVAL.item = []interface{}{&ast.NullString{String: yyS[yypt-2].ident, Empty: len(yyS[yypt-2].ident) == 0}, yyS[yypt-0].item}
 		}
 	case 578:
 		{
