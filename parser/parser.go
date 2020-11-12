@@ -17493,6 +17493,13 @@ yynewstate:
 		{
 			fopt := yyS[yypt-1].item.(*ast.FloatOpt)
 			x := types.NewFieldType(yyS[yypt-2].item.(byte))
+			// check for a double(10) for syntax error
+			if x.Tp == mysql.TypeDouble && parser.strictDoubleFieldType {
+				if fopt.Flen != types.UnspecifiedLength && fopt.Decimal == types.UnspecifiedLength {
+					yylex.AppendError(ErrSyntax)
+					return 1
+				}
+			}
 			x.Flen = fopt.Flen
 			if x.Tp == mysql.TypeFloat && fopt.Decimal == types.UnspecifiedLength && x.Flen <= mysql.MaxDoublePrecisionLength {
 				if x.Flen > mysql.MaxFloatPrecisionLength {
