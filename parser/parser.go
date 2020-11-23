@@ -11579,7 +11579,7 @@ yynewstate:
 		}
 	case 208:
 		{
-			parser.yyVAL.item = &ast.ColumnOption{Tp: ast.ColumnOptionComment, Expr: ast.NewValueExpr(yyS[yypt-0].ident, parser.charset, parser.collation)}
+			parser.yyVAL.item = &ast.ColumnOption{Tp: ast.ColumnOptionComment, Expr: ast.NewValueExpr(yyS[yypt-0].ident, "", "")}
 		}
 	case 209:
 		{
@@ -13993,7 +13993,7 @@ yynewstate:
 	case 1109:
 		{
 			// See https://dev.mysql.com/doc/refman/5.7/en/cast-functions.html#function_convert
-			charset1 := ast.NewValueExpr(yyS[yypt-1].ident, parser.charset, parser.collation)
+			charset1 := ast.NewValueExpr(yyS[yypt-1].ident, "", "")
 			parser.yyVAL.expr = &ast.FuncCallExpr{
 				FnName: model.NewCIStr(yyS[yypt-5].ident),
 				Args:   []ast.ExprNode{yyS[yypt-3].expr, charset1},
@@ -14073,7 +14073,7 @@ yynewstate:
 		}
 	case 1171:
 		{
-			charset1 := ast.NewValueExpr(yyS[yypt-1].ident, parser.charset, parser.collation)
+			charset1 := ast.NewValueExpr(yyS[yypt-1].ident, "", "")
 			args := yyS[yypt-3].item.([]ast.ExprNode)
 			parser.yyVAL.expr = &ast.FuncCallExpr{
 				FnName: model.NewCIStr(ast.CharFunc),
@@ -14082,17 +14082,17 @@ yynewstate:
 		}
 	case 1172:
 		{
-			expr := ast.NewValueExpr(yyS[yypt-0].ident, parser.charset, parser.collation)
+			expr := ast.NewValueExpr(yyS[yypt-0].ident, "", "")
 			parser.yyVAL.expr = &ast.FuncCallExpr{FnName: model.NewCIStr(ast.DateLiteral), Args: []ast.ExprNode{expr}}
 		}
 	case 1173:
 		{
-			expr := ast.NewValueExpr(yyS[yypt-0].ident, parser.charset, parser.collation)
+			expr := ast.NewValueExpr(yyS[yypt-0].ident, "", "")
 			parser.yyVAL.expr = &ast.FuncCallExpr{FnName: model.NewCIStr(ast.TimeLiteral), Args: []ast.ExprNode{expr}}
 		}
 	case 1174:
 		{
-			expr := ast.NewValueExpr(yyS[yypt-0].ident, parser.charset, parser.collation)
+			expr := ast.NewValueExpr(yyS[yypt-0].ident, "", "")
 			parser.yyVAL.expr = &ast.FuncCallExpr{FnName: model.NewCIStr(ast.TimestampLiteral), Args: []ast.ExprNode{expr}}
 		}
 	case 1175:
@@ -14529,11 +14529,11 @@ yynewstate:
 		}
 	case 1242:
 		{
-			parser.yyVAL.item = ast.NewValueExpr(",", parser.charset, parser.collation)
+			parser.yyVAL.item = ast.NewValueExpr(",", "", "")
 		}
 	case 1243:
 		{
-			parser.yyVAL.item = ast.NewValueExpr(yyS[yypt-0].ident, parser.charset, parser.collation)
+			parser.yyVAL.item = ast.NewValueExpr(yyS[yypt-0].ident, "", "")
 		}
 	case 1244:
 		{
@@ -16246,22 +16246,22 @@ yynewstate:
 		{
 			parser.yyVAL.item = &ast.VariableAssignment{
 				Name:  ast.SetNames,
-				Value: ast.NewValueExpr(yyS[yypt-0].ident, parser.charset, parser.collation),
+				Value: ast.NewValueExpr(yyS[yypt-0].ident, "", ""),
 			}
 		}
 	case 1567:
 		{
 			parser.yyVAL.item = &ast.VariableAssignment{
 				Name:  ast.SetNames,
-				Value: ast.NewValueExpr(yyS[yypt-2].ident, parser.charset, parser.collation),
+				Value: ast.NewValueExpr(yyS[yypt-2].ident, "", ""),
 			}
 		}
 	case 1568:
 		{
 			parser.yyVAL.item = &ast.VariableAssignment{
 				Name:        ast.SetNames,
-				Value:       ast.NewValueExpr(yyS[yypt-2].ident, parser.charset, parser.collation),
-				ExtendValue: ast.NewValueExpr(yyS[yypt-0].ident, parser.charset, parser.collation),
+				Value:       ast.NewValueExpr(yyS[yypt-2].ident, "", ""),
+				ExtendValue: ast.NewValueExpr(yyS[yypt-0].ident, "", ""),
 			}
 		}
 	case 1569:
@@ -16275,7 +16275,7 @@ yynewstate:
 		}
 	case 1571:
 		{
-			parser.yyVAL.expr = ast.NewValueExpr(yyS[yypt-0].ident, parser.charset, parser.collation)
+			parser.yyVAL.expr = ast.NewValueExpr(yyS[yypt-0].ident, "", "")
 		}
 	case 1572:
 		{
