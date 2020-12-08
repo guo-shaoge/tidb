@@ -15320,7 +15320,8 @@ yynewstate:
 	case 1367:
 		{
 			st := &ast.SelectStmt{
-				Kind: ast.SelectStmtKindTable,
+				Kind:   ast.SelectStmtKindTable,
+				Fields: &ast.FieldList{Fields: []*ast.SelectField{{WildCard: &ast.WildCardField{}}}},
 			}
 			ts := &ast.TableSource{Source: yyS[yypt-4].item.(*ast.TableName)}
 			st.From = &ast.TableRefsClause{TableRefs: &ast.Join{Left: ts}}
@@ -15341,8 +15342,9 @@ yynewstate:
 	case 1368:
 		{
 			st := &ast.SelectStmt{
-				Kind:  ast.SelectStmtKindValues,
-				Lists: yyS[yypt-4].item.([]*ast.RowExpr),
+				Kind:   ast.SelectStmtKindValues,
+				Fields: &ast.FieldList{Fields: []*ast.SelectField{{WildCard: &ast.WildCardField{}}}},
+				Lists:  yyS[yypt-4].item.([]*ast.RowExpr),
 			}
 			if yyS[yypt-3].item != nil {
 				st.OrderBy = yyS[yypt-3].item.(*ast.OrderByClause)
