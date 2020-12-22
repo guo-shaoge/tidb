@@ -18795,15 +18795,15 @@ yynewstate:
 		}
 	case 2126:
 		{
-			parser.yyVAL.item = mysql.PrivilegeType(0)
+			parser.yyVAL.item = mysql.ReplicationSlavePriv
 		}
 	case 2127:
 		{
-			parser.yyVAL.item = mysql.PrivilegeType(0)
+			parser.yyVAL.item = mysql.ReplicationClientPriv
 		}
 	case 2128:
 		{
-			parser.yyVAL.item = mysql.PrivilegeType(0)
+			parser.yyVAL.item = mysql.UsagePriv
 		}
 	case 2129:
 		{
