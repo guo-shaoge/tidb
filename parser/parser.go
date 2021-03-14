@@ -11039,8 +11039,6 @@ yynewstate:
 			}
 			if yyS[yypt-0].item == nil {
 				ret.OnAllPartitions = true
-				yylex.AppendError(yylex.Errorf("The TRUNCATE PARTITION ALL clause is parsed but ignored by all storage engines."))
-				parser.lastErrorAsWarn()
 			} else {
 				ret.PartitionNames = yyS[yypt-0].item.([]model.CIStr)
 			}
