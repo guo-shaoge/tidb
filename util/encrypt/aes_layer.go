@@ -69,6 +69,10 @@ func (ctr *CtrCipher) stream(counter uint64) cipher.Stream {
 	return cipher.NewCTR(ctr.block, counterBuf)
 }
 
+func (ctr *CtrCipher) GetEncryptBlockSize() int {
+    return int(ctr.encryptBlockSize)
+}
+
 // Writer implements an io.WriteCloser, it encrypt data using AES before writing to the underlying object.
 type Writer struct {
 	err          error
@@ -76,14 +80,15 @@ type Writer struct {
 	n            int
 	buf          []byte
 	cipherStream cipher.Stream
+    flushedUserDataCnt int64
 }
 
 // NewWriter returns a new Writer which encrypt data using AES before writing to the underlying object.
 func NewWriter(w io.WriteCloser, ctrCipher *CtrCipher) *Writer {
-	writer := &Writer{w: w}
-	writer.buf = make([]byte, ctrCipher.encryptBlockSize)
-	writer.cipherStream = ctrCipher.stream(0)
-	return writer
+    writer := &Writer{w: w}
+    writer.buf = make([]byte, ctrCipher.encryptBlockSize)
+    writer.cipherStream = ctrCipher.stream(0)
+    return writer
 }
 
 // AvailableSize returns how many bytes are unused in the buffer.
@@ -123,7 +128,8 @@ func (w *Writer) Flush() error {
 	}
 	w.cipherStream.XORKeyStream(w.buf[:w.n], w.buf[:w.n])
 	n, err := w.w.Write(w.buf[:w.n])
-	if n < w.n && err == nil {
+    w.flushedUserDataCnt += int64(n)
+    if n < w.n && err == nil {
 		err = io.ErrShortWrite
 	}
 	if err != nil {
@@ -132,6 +138,14 @@ func (w *Writer) Flush() error {
 	}
 	w.n = 0
 	return nil
+}
+
+func (w *Writer) GetCache() []byte {
+    return w.buf[:w.n]
+}
+
+func (w *Writer) GetCacheDataOffset() int64 {
+    return w.flushedUserDataCnt
 }
 
 // Close implements the io.Closer interface.

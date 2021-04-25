@@ -184,6 +184,10 @@ func (e *baseExecutor) Schema() *expression.Schema {
 	return e.schema
 }
 
+func NewFirstChunk(e Executor) *chunk.Chunk {
+	return newFirstChunk(e)
+}
+
 // newFirstChunk creates a new chunk to buffer current executor's result.
 func newFirstChunk(e Executor) *chunk.Chunk {
 	base := e.base()
