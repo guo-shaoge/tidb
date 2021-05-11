@@ -12988,7 +12988,7 @@ yynewstate:
 		}
 	case 386:
 		{
-			parser.yyVAL.item = &ast.CreateTableStmt{Select: yyS[yypt-0].statement}
+			parser.yyVAL.item = &ast.CreateTableStmt{Select: yyS[yypt-0].statement.(ast.ResultSetNode)}
 		}
 	case 388:
 		{
