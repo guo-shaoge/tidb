@@ -77,6 +77,13 @@ type CTEExec struct {
 	curIter    int
 	hCtx       *hashContext
 	sel        []int
+
+	// Limit related info.
+	hasLimit       bool
+	limitBeg       uint64
+	limitEnd       uint64
+	cursor         uint64
+	meetFirstBatch bool
 }
 
 // Open implements the Executor interface.
@@ -126,6 +133,7 @@ func (e *CTEExec) Next(ctx context.Context, req *chunk.Chunk) (err error) {
 	e.resTbl.Lock()
 	if !e.resTbl.Done() {
 		defer e.resTbl.Unlock()
+
 		resAction := setupCTEStorageTracker(e.resTbl, e.ctx)
 		iterInAction := setupCTEStorageTracker(e.iterInTbl, e.ctx)
 
@@ -155,16 +163,58 @@ func (e *CTEExec) Next(ctx context.Context, req *chunk.Chunk) (err error) {
 		e.resTbl.Unlock()
 	}
 
-	if e.chkIdx < e.resTbl.NumChunks() {
-		res, err := e.resTbl.GetChunk(e.chkIdx)
-		if err != nil {
-			return err
+	if e.hasLimit {
+		if !e.meetFirstBatch {
+			for e.chkIdx < e.resTbl.NumChunks() {
+				res, err := e.resTbl.GetChunk(e.chkIdx)
+				if err != nil {
+					return err
+				}
+				e.chkIdx++
+				numRows := uint64(res.NumRows())
+				if e.cursor+numRows >= e.limitBeg {
+					e.meetFirstBatch = true
+					begInChk, endInChk := e.limitBeg-e.cursor, numRows
+					if endInChk > e.limitEnd {
+						endInChk = e.limitEnd - e.cursor
+					}
+					e.cursor += endInChk
+					if begInChk == endInChk {
+						break
+					}
+					tmpChk := newFirstChunk(e.seedExec)
+					tmpChk.Append(res, int(begInChk), int(endInChk))
+					req.SwapColumns(tmpChk.CopyConstruct())
+					return nil
+				}
+			}
 		}
-		// Need to copy chunk to make sure upper operator will not change chunk in resTbl.
-		// Also we ignore copying rows not selected, because some operators like Projection
-		// doesn't support swap column if chunk.sel is no nil.
-		req.SwapColumns(res.CopyConstructSel())
-		e.chkIdx++
+		if e.chkIdx < e.resTbl.NumChunks() && e.cursor < e.limitEnd {
+			res, err := e.resTbl.GetChunk(e.chkIdx)
+			if err != nil {
+				return err
+			}
+			e.chkIdx++
+			numRows := uint64(res.NumRows())
+			req.SwapColumns(res.CopyConstructSel())
+			if e.cursor+numRows > e.limitEnd {
+				req.TruncateTo(int(e.limitEnd - e.cursor))
+				numRows = e.limitEnd - e.cursor
+			}
+			e.cursor += numRows
+		}
+	} else {
+		if e.chkIdx < e.resTbl.NumChunks() {
+			res, err := e.resTbl.GetChunk(e.chkIdx)
+			if err != nil {
+				return err
+			}
+			// Need to copy chunk to make sure upper operator will not change chunk in resTbl.
+			// Also we ignore copying rows not selected, because some operators like Projection
+			// doesn't support swap column if chunk.sel is no nil.
+			req.SwapColumns(res.CopyConstructSel())
+			e.chkIdx++
+		}
 	}
 	return nil
 }
@@ -222,6 +272,9 @@ func (e *CTEExec) computeSeedPart(ctx context.Context) (err error) {
 }
 
 func (e *CTEExec) computeRecursivePart(ctx context.Context) (err error) {
+	if e.hasLimit && uint64(e.resTbl.NumRows()) >= e.limitEnd {
+		return nil
+	}
 	if e.recursiveExec == nil || e.iterInTbl.NumChunks() == 0 {
 		return nil
 	}
@@ -238,6 +291,9 @@ func (e *CTEExec) computeRecursivePart(ctx context.Context) (err error) {
 		if chk.NumRows() == 0 {
 			if err = e.setupTblsForNewIteration(); err != nil {
 				return err
+			}
+			if e.hasLimit && uint64(e.resTbl.NumRows()) >= e.limitEnd {
+				break
 			}
 			if e.iterInTbl.NumChunks() == 0 {
 				break
