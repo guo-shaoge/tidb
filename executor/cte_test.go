@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"math/rand"
 	"sort"
+	"strings"
 
 	"github.com/pingcap/check"
 
@@ -115,6 +116,19 @@ func (test *CTETestSuite) TestBasicCTE(c *check.C) {
 	rows.Check(testkit.Rows("1"))
 	rows = tk.MustQuery("SELECT * FROM t1 dt WHERE EXISTS( WITH RECURSIVE qn AS (SELECT a*0 AS b UNION ALL SELECT b+1 FROM qn WHERE b=0 or b = 1) SELECT * FROM qn WHERE b=a );")
 	rows.Check(testkit.Rows("1", "2"))
+
+	tk.MustExec("drop table if exists t1, t2;")
+	tk.MustExec("create table t1(c1 int);")
+	tk.MustExec("insert into t1 values(1), (2), (1), (2);")
+	tk.MustExec("create table t2(c1 int primary key);")
+	tk.MustExec("insert into t2 values(1), (2), (3);")
+	rows = tk.MustQuery("with recursive cte1(c1) as (select c1 from t1 union select c1 + 1 c1 from t1 where c1 < 3) select /*+ MERGE_JOIN(dt1, dt2) */ * from cte1 dt1 left join t1 dt2 on dt1.c1 = dt2.c1 order by dt1.c1, dt2.c1;")
+	rows.Check(testkit.Rows("1 1", "1 1", "2 2", "2 2", "3 <nil>"))
+
+	lines := tk.MustQuery("explain with recursive cte1(c1) as (select c1 from t1 union select c1 + 1 c1 from t1 where c1 < 3) select /*+ MERGE_JOIN(dt1, dt2) */ * from cte1 dt1 left join t1 dt2 on dt1.c1 = dt2.c1 order by dt1.c1, dt2.c1;").Rows()
+	c.Assert(len(lines), check.Greater, 2)
+	line := fmt.Sprintf("%v", lines[0])
+	c.Assert(strings.Contains(line, "MergeJoin"), check.IsTrue)
 }
 
 func (test *CTESerialTestSuite) TestSpillToDisk(c *check.C) {
