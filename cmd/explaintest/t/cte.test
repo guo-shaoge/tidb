@@ -182,4 +182,3 @@ insert into t1 values(1), (2), (1), (2);
 create table t2(c1 int primary key);
 insert into t2 values(1), (2), (3);
 with recursive cte1(c1) as (select c1 from t1 union select c1 + 1 c1 from t1 where c1 < 3) select /*+ MERGE_JOIN(dt1, dt2) */ * from cte1 dt1 left join t1 dt2 on dt1.c1 = dt2.c1 order by dt1.c1, dt2.c1;
-explain with recursive cte1(c1) as (select c1 from t1 union select c1 + 1 c1 from t1 where c1 < 3) select /*+ MERGE_JOIN(dt1, dt2) */ * from cte1 dt1 left join t1 dt2 on dt1.c1 = dt2.c1 order by dt1.c1, dt2.c1;

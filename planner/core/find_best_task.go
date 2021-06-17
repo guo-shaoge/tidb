@@ -1962,30 +1962,32 @@ func (ds *DataSource) getOriginalPhysicalIndexScan(prop *property.PhysicalProper
 }
 
 func (p *LogicalCTE) findBestTask(prop *property.PhysicalProperty, planCounter *PlanCounterTp) (t task, cntPlan int64, err error) {
-	if p.cte.cteTask != nil {
+	var pcte *PhysicalCTE
+	if p.cte.physicalCTE != nil {
 		// Already built it.
-		return p.cte.cteTask, 1, nil
-	}
-	sp, _, err := DoOptimize(context.TODO(), p.ctx, p.cte.optFlag, p.cte.seedPartLogicalPlan)
-	if err != nil {
-		return nil, 1, err
-	}
-
-	var rp PhysicalPlan
-	if p.cte.recursivePartLogicalPlan != nil {
-		rp, _, err = DoOptimize(context.TODO(), p.ctx, p.cte.optFlag, p.cte.recursivePartLogicalPlan)
+		pcte = p.cte.physicalCTE
+	} else {
+		sp, _, err := DoOptimize(context.TODO(), p.ctx, p.cte.optFlag, p.cte.seedPartLogicalPlan)
 		if err != nil {
 			return nil, 1, err
 		}
-	}
 
-	pcte := PhysicalCTE{SeedPlan: sp, RecurPlan: rp, CTE: p.cte, cteAsName: p.cteAsName}.Init(p.ctx, p.stats)
-	pcte.SetSchema(p.schema)
-	t = &rootTask{pcte, sp.statsInfo().RowCount, false}
+		var rp PhysicalPlan
+		if p.cte.recursivePartLogicalPlan != nil {
+			rp, _, err = DoOptimize(context.TODO(), p.ctx, p.cte.optFlag, p.cte.recursivePartLogicalPlan)
+			if err != nil {
+				return nil, 1, err
+			}
+		}
+
+		pcte = PhysicalCTE{SeedPlan: sp, RecurPlan: rp, CTE: p.cte, cteAsName: p.cteAsName}.Init(p.ctx, p.stats)
+		pcte.SetSchema(p.schema)
+		p.cte.physicalCTE = pcte
+	}
+	t = &rootTask{pcte, pcte.SeedPlan.statsInfo().RowCount, false}
 	if !prop.IsEmpty() {
 		t = enforceProperty(prop, t, pcte.basePlan.ctx)
 	}
-	p.cte.cteTask = t
 	return t, 1, nil
 }
 
