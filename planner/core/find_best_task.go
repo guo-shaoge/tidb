@@ -1962,6 +1962,9 @@ func (ds *DataSource) getOriginalPhysicalIndexScan(prop *property.PhysicalProper
 }
 
 func (p *LogicalCTE) findBestTask(prop *property.PhysicalProperty, planCounter *PlanCounterTp) (t task, cntPlan int64, err error) {
+	if !prop.IsEmpty() && !prop.CanAddEnforcer {
+		return invalidTask, 1, nil
+	}
 	var pcte *PhysicalCTE
 	if p.cte.physicalCTE != nil {
 		// Already built it.
@@ -1986,6 +1989,8 @@ func (p *LogicalCTE) findBestTask(prop *property.PhysicalProperty, planCounter *
 	}
 	t = &rootTask{pcte, pcte.SeedPlan.statsInfo().RowCount, false}
 	if !prop.IsEmpty() {
+		// When got here, `prop.CanAddEnforcer` must be true,
+		// so we just enforce property.
 		t = enforceProperty(prop, t, pcte.basePlan.ctx)
 	}
 	return t, 1, nil
