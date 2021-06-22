@@ -175,3 +175,9 @@ desc with cte as (select * from t) select * from cte;
 create SESSION binding for with cte as (select * from t) select * from cte using with cte as (select * from t use index(b)) select * from cte;
 desc with cte as (select * from t) select * from cte;
 desc with cte as (select * from t use index()) select * from cte;
+
+# case 33
+drop table if exists t1;
+create table t1(c1 int);
+insert into t1 values(1);
+desc with recursive cte1(c1) as (select c1 from t1 order by c1) select /*+ MERGE_JOIN(dt1, dt2) */ * from cte1 dt1 left join t1 dt2 on dt1.c1 = dt2.c1;
