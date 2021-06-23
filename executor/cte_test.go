@@ -18,7 +18,6 @@ import (
 	"fmt"
 	"math/rand"
 	"sort"
-	"strings"
 
 	"github.com/pingcap/check"
 
@@ -32,6 +31,7 @@ import (
 	"github.com/pingcap/tidb/store/mockstore"
 	"github.com/pingcap/tidb/util/mock"
 	"github.com/pingcap/tidb/util/testkit"
+	"github.com/pingcap/tidb/util/testutil"
 )
 
 var _ = check.Suite(&CTETestSuite{&baseCTETestSuite{}})
@@ -43,6 +43,7 @@ type baseCTETestSuite struct {
 	sessionCtx sessionctx.Context
 	session    session.Session
 	ctx        context.Context
+	testData   testutil.TestData
 }
 
 type CTETestSuite struct {
@@ -68,11 +69,15 @@ func (test *baseCTETestSuite) SetUpSuite(c *check.C) {
 	test.session.SetConnectionID(0)
 
 	test.ctx = context.Background()
+
+	test.testData, err = testutil.LoadTestSuiteData("testdata", "cte_suite")
+	c.Assert(err, check.IsNil)
 }
 
 func (test *baseCTETestSuite) TearDownSuite(c *check.C) {
 	test.dom.Close()
 	test.store.Close()
+	c.Assert(test.testData.GenerateOutputIfNeeded(), check.IsNil)
 }
 
 func (test *CTETestSuite) TestBasicCTE(c *check.C) {
@@ -116,19 +121,76 @@ func (test *CTETestSuite) TestBasicCTE(c *check.C) {
 	rows.Check(testkit.Rows("1"))
 	rows = tk.MustQuery("SELECT * FROM t1 dt WHERE EXISTS( WITH RECURSIVE qn AS (SELECT a*0 AS b UNION ALL SELECT b+1 FROM qn WHERE b=0 or b = 1) SELECT * FROM qn WHERE b=a );")
 	rows.Check(testkit.Rows("1", "2"))
+}
+
+func (test *CTETestSuite) TestCTEHint(c *check.C) {
+	tk := testkit.NewTestKit(c, test.store)
+	tk.MustExec("use test")
 
 	tk.MustExec("drop table if exists t1, t2;")
 	tk.MustExec("create table t1(c1 int);")
 	tk.MustExec("insert into t1 values(1), (2), (1), (2);")
 	tk.MustExec("create table t2(c1 int primary key);")
 	tk.MustExec("insert into t2 values(1), (2), (3);")
+
+	// Test HASH/INL join.
+	rows := tk.MustQuery("with recursive cte1(c1) as (select c1 from t1 union select c1 + 1 c1 from t1 where c1 < 3) select /*+ HASH_JOIN(dt1, dt2) */ * from cte1 dt1 left join t1 dt2 on dt1.c1 = dt2.c1 order by dt1.c1, dt2.c1;")
+	rows.Check(testkit.Rows("1 1", "1 1", "2 2", "2 2", "3 <nil>"))
+	rows = tk.MustQuery("with recursive cte1(c1) as (select c1 from t1 union select c1 + 1 c1 from t1 where c1 < 3) select /*+ INL_JOIN(dt2) */ * from cte1 dt1 left join t2 dt2 on dt1.c1 = dt2.c1 order by dt1.c1, dt2.c1;")
+	rows.Check(testkit.Rows("1 1", "2 2", "3 3"))
+	rows = tk.MustQuery("with recursive cte1(c1) as (select c1 from t1 union select c1 + 1 c1 from t1 where c1 < 3) select /*+ INL_HASH_JOIN(dt2) */ * from cte1 dt1 left join t2 dt2 on dt1.c1 = dt2.c1 order by dt1.c1, dt2.c1;")
+	rows.Check(testkit.Rows("1 1", "2 2", "3 3"))
+
+	// Non-recursive left join.
 	rows = tk.MustQuery("with recursive cte1(c1) as (select c1 from t1 union select c1 + 1 c1 from t1 where c1 < 3) select /*+ MERGE_JOIN(dt1, dt2) */ * from cte1 dt1 left join t1 dt2 on dt1.c1 = dt2.c1 order by dt1.c1, dt2.c1;")
 	rows.Check(testkit.Rows("1 1", "1 1", "2 2", "2 2", "3 <nil>"))
+	rows = tk.MustQuery("with recursive cte1(c1) as (select c1 from t2 union select c1 + 1 c1 from t2 where c1 < 3) select /*+ MERGE_JOIN(dt1, dt2) */ * from cte1 dt1 left join t1 dt2 on dt1.c1 = dt2.c1 order by dt1.c1, dt2.c1;")
+	rows.Check(testkit.Rows("1 1", "1 1", "2 2", "2 2", "3 <nil>"))
 
-	lines := tk.MustQuery("explain with recursive cte1(c1) as (select c1 from t1 union select c1 + 1 c1 from t1 where c1 < 3) select /*+ MERGE_JOIN(dt1, dt2) */ * from cte1 dt1 left join t1 dt2 on dt1.c1 = dt2.c1 order by dt1.c1, dt2.c1;").Rows()
-	c.Assert(len(lines), check.Greater, 2)
-	line := fmt.Sprintf("%v", lines[0])
-	c.Assert(strings.Contains(line, "MergeJoin"), check.IsTrue)
+	// Recursive left join.
+	rows = tk.MustQuery("with recursive cte1(c1) as (select c1 from t1 union select c1 + 1 c1 from cte1 where c1 < 3) select /*+ MERGE_JOIN(dt1, dt2) */ * from cte1 dt1 left join t1 dt2 on dt1.c1 = dt2.c1 order by dt1.c1, dt2.c1;")
+	rows.Check(testkit.Rows("1 1", "1 1", "2 2", "2 2", "3 <nil>"))
+	rows = tk.MustQuery("with recursive cte1(c1) as (select c1 from t2 union select c1 + 1 c1 from cte1 where c1 < 3) select /*+ MERGE_JOIN(dt1, dt2) */ * from cte1 dt1 left join t1 dt2 on dt1.c1 = dt2.c1 order by dt1.c1, dt2.c1;")
+	rows.Check(testkit.Rows("1 1", "1 1", "2 2", "2 2", "3 <nil>"))
+
+	// Non-recursive right join.
+	rows = tk.MustQuery("with recursive cte1(c1) as (select c1 from t1 union select c1 + 1 c1 from t1 where c1 < 3) select /*+ MERGE_JOIN(dt1, dt2) */ * from cte1 dt1 right join t1 dt2 on dt1.c1 = dt2.c1 order by dt1.c1, dt2.c1;")
+	rows.Check(testkit.Rows("1 1", "1 1", "2 2", "2 2"))
+	rows = tk.MustQuery("with recursive cte1(c1) as (select c1 from t2 union select c1 + 1 c1 from t2 where c1 < 3) select /*+ MERGE_JOIN(dt1, dt2) */ * from cte1 dt1 right join t1 dt2 on dt1.c1 = dt2.c1 order by dt1.c1, dt2.c1;")
+	rows.Check(testkit.Rows("1 1", "1 1", "2 2", "2 2"))
+
+	// Recursive right join.
+	rows = tk.MustQuery("with recursive cte1(c1) as (select c1 from t1 union select c1 + 1 c1 from cte1 where c1 < 3) select /*+ MERGE_JOIN(dt1, dt2) */ * from cte1 dt1 right join t1 dt2 on dt1.c1 = dt2.c1 order by dt1.c1, dt2.c1;")
+	rows.Check(testkit.Rows("1 1", "1 1", "2 2", "2 2"))
+	rows = tk.MustQuery("with recursive cte1(c1) as (select c1 from t2 union select c1 + 1 c1 from cte1 where c1 < 3) select /*+ MERGE_JOIN(dt1, dt2) */ * from cte1 dt1 right join t1 dt2 on dt1.c1 = dt2.c1 order by dt1.c1, dt2.c1;")
+	rows.Check(testkit.Rows("1 1", "1 1", "2 2", "2 2"))
+
+	// Non-recursive inner join.
+	rows = tk.MustQuery("with recursive cte1(c1) as (select c1 from t1 union select c1 + 1 c1 from t1 where c1 < 3) select /*+ MERGE_JOIN(dt1, dt2) */ * from cte1 dt1 inner join t1 dt2 on dt1.c1 = dt2.c1 order by dt1.c1, dt2.c1;")
+	rows.Check(testkit.Rows("1 1", "1 1", "2 2", "2 2"))
+	rows = tk.MustQuery("with recursive cte1(c1) as (select c1 from t2 union select c1 + 1 c1 from t2 where c1 < 3) select /*+ MERGE_JOIN(dt1, dt2) */ * from cte1 dt1 inner join t1 dt2 on dt1.c1 = dt2.c1 order by dt1.c1, dt2.c1;")
+	rows.Check(testkit.Rows("1 1", "1 1", "2 2", "2 2"))
+
+	// Recursive inner join.
+	rows = tk.MustQuery("with recursive cte1(c1) as (select c1 from t1 union select c1 + 1 c1 from cte1 where c1 < 3) select /*+ MERGE_JOIN(dt1, dt2) */ * from cte1 dt1 inner join t1 dt2 on dt1.c1 = dt2.c1 order by dt1.c1, dt2.c1;")
+	rows.Check(testkit.Rows("1 1", "1 1", "2 2", "2 2"))
+	rows = tk.MustQuery("with recursive cte1(c1) as (select c1 from t2 union select c1 + 1 c1 from cte1 where c1 < 3) select /*+ MERGE_JOIN(dt1, dt2) */ * from cte1 dt1 inner join t1 dt2 on dt1.c1 = dt2.c1 order by dt1.c1, dt2.c1;")
+	rows.Check(testkit.Rows("1 1", "1 1", "2 2", "2 2"))
+
+	rows = tk.MustQuery("with recursive cte1(c1) as (select c1 from t1 union select c1 + 1 c1 from t1 where c1 < 3 order by c1) select /*+ MERGE_JOIN(dt1, dt2) */ * from cte1 dt1 left join t1 dt2 on dt1.c1 = dt2.c1 order by dt1.c1, dt2.c1;")
+	rows.Check(testkit.Rows("1 1", "1 1", "2 2", "2 2", "3 <nil>"))
+
+	var (
+		input  []string
+		output [][]string
+	)
+	test.testData.GetTestCases(c, &input, &output)
+	for i, tt := range input {
+		test.testData.OnRecord(func() {
+			output[i] = test.testData.ConvertRowsToStrings(tk.MustQuery(tt).Rows())
+		})
+		tk.MustQuery(tt).Check(testkit.Rows(output[i]...))
+	}
 }
 
 func (test *CTESerialTestSuite) TestSpillToDisk(c *check.C) {

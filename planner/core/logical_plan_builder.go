@@ -3700,7 +3700,8 @@ func (b *PlanBuilder) tryBuildCTE(ctx context.Context, tn *ast.TableName, asName
 
 				cte.recursiveRef = true
 				p := LogicalCTETable{name: cte.def.Name.String(), idForStorage: cte.storageID}.Init(b.ctx, b.getSelectOffset())
-				p.SetSchema(getResultCTESchema(cte.seedLP.Schema(), b.ctx.GetSessionVars()))
+				resSchema, _ := getResultCTESchema(cte.seedLP.Schema(), b.ctx.GetSessionVars())
+				p.SetSchema(resSchema)
 				p.SetOutputNames(cte.seedLP.OutputNames())
 				return p, nil
 			}
@@ -3728,7 +3729,9 @@ func (b *PlanBuilder) tryBuildCTE(ctx context.Context, tn *ast.TableName, asName
 				recursivePartLogicalPlan: cte.recurLP, IDForStorage: cte.storageID,
 				optFlag: cte.optFlag, HasLimit: hasLimit, LimitBeg: limitBeg,
 				LimitEnd: limitEnd}}.Init(b.ctx, b.getSelectOffset())
-			lp.SetSchema(getResultCTESchema(cte.seedLP.Schema(), b.ctx.GetSessionVars()))
+			resSchema, seedColMap := getResultCTESchema(cte.seedLP.Schema(), b.ctx.GetSessionVars())
+			lp.SetSchema(resSchema)
+			lp.cte.seedColMap = seedColMap
 			p = lp
 			p.SetOutputNames(cte.seedLP.OutputNames())
 			if len(asName.String()) > 0 {
@@ -6155,7 +6158,7 @@ func (b *PlanBuilder) buildProjection4CTEUnion(ctx context.Context, seed Logical
 		return nil, ErrWrongNumberOfColumnsInSelect.GenWithStackByArgs()
 	}
 	exprs := make([]expression.Expression, len(seed.Schema().Columns))
-	resSchema := getResultCTESchema(seed.Schema(), b.ctx.GetSessionVars())
+	resSchema, _ := getResultCTESchema(seed.Schema(), b.ctx.GetSessionVars())
 	for i, col := range recur.Schema().Columns {
 		if !resSchema.Columns[i].RetType.Equal(col.RetType) {
 			exprs[i] = expression.BuildCastFunction4Union(b.ctx, col, resSchema.Columns[i].RetType)
@@ -6171,12 +6174,14 @@ func (b *PlanBuilder) buildProjection4CTEUnion(ctx context.Context, seed Logical
 }
 
 // The recursive part/CTE's schema is nullable, and the UID should be unique.
-func getResultCTESchema(seedSchema *expression.Schema, svar *variable.SessionVars) *expression.Schema {
+func getResultCTESchema(seedSchema *expression.Schema, svar *variable.SessionVars) (*expression.Schema, map[int64]*expression.Column) {
 	res := seedSchema.Clone()
-	for _, col := range res.Columns {
+	seedColMap := make(map[int64]*expression.Column, len(res.Columns))
+	for i, col := range res.Columns {
 		col.RetType = col.RetType.Clone()
 		col.UniqueID = svar.AllocPlanColumnID()
 		col.RetType.Flag &= ^mysql.NotNullFlag
+		seedColMap[col.UniqueID] = seedSchema.Columns[i]
 	}
-	return res
+	return res, seedColMap
 }

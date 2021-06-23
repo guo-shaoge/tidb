@@ -16,6 +16,7 @@ package core
 import (
 	"context"
 	"fmt"
+	"math"
 	"sort"
 	"strings"
 	"testing"
@@ -1633,7 +1634,11 @@ func (s *testPlanSuite) optimize(ctx context.Context, sql string) (PhysicalPlan,
 	if err != nil {
 		return nil, nil, err
 	}
-	p, _, err = physicalOptimize(p.(LogicalPlan), &PlanCounterDisabled)
+	prop := &property.PhysicalProperty{
+		TaskTp:      property.RootTaskType,
+		ExpectedCnt: math.MaxFloat64,
+	}
+	p, _, err = physicalOptimize(p.(LogicalPlan), &PlanCounterDisabled, prop)
 	return p.(PhysicalPlan), stmt, err
 }
 

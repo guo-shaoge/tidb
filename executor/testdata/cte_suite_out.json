@@ -1,0 +1,52 @@
+[
+  {
+    "Name": "TestCTEHint",
+    "Cases": [
+      [
+        "MergeJoin_45 1.25 root  left outer join, left key:Column#12, right key:test.t1.c1",
+        "├─Sort_43(Build) 9990.00 root  test.t1.c1",
+        "│ └─TableReader_42 9990.00 root  data:Selection_41",
+        "│   └─Selection_41 9990.00 cop[tikv]  not(isnull(test.t1.c1))",
+        "│     └─TableFullScan_40 10000.00 cop[tikv] table:dt2 keep order:false, stats:pseudo",
+        "└─CTEFullScan_39(Probe) 1.00 root CTE:dt1 data:CTE_0",
+        "CTE_0 1.00 root  Non-Recursive CTE",
+        "└─Sort_25(Seed Part) 10658.67 root  Column#11",
+        "  └─HashAgg_29 10658.67 root  group by:Column#11, funcs:firstrow(Column#11)->Column#11",
+        "    └─Union_30 13323.33 root  ",
+        "      ├─Projection_31 10000.00 root  cast(test.t1.c1, bigint(20) BINARY)->Column#11",
+        "      │ └─TableReader_33 10000.00 root  data:TableFullScan_32",
+        "      │   └─TableFullScan_32 10000.00 cop[tikv] table:t1 keep order:false, stats:pseudo",
+        "      └─Projection_34 3323.33 root  plus(test.t1.c1, 1)->Column#11",
+        "        └─TableReader_37 3323.33 root  data:Selection_36",
+        "          └─Selection_36 3323.33 cop[tikv]  lt(test.t1.c1, 3)",
+        "            └─TableFullScan_35 10000.00 cop[tikv] table:t1 keep order:false, stats:pseudo"
+      ],
+      [
+        "MergeJoin_25 1.25 root  left outer join, left key:test.t2.c1, right key:test.t1.c1",
+        "├─Sort_23(Build) 9990.00 root  test.t1.c1",
+        "│ └─TableReader_22 9990.00 root  data:Selection_21",
+        "│   └─Selection_21 9990.00 cop[tikv]  not(isnull(test.t1.c1))",
+        "│     └─TableFullScan_20 10000.00 cop[tikv] table:dt2 keep order:false, stats:pseudo",
+        "└─CTEFullScan_19(Probe) 1.00 root CTE:dt1 data:CTE_0",
+        "CTE_0 1.00 root  Non-Recursive CTE",
+        "└─TableReader_15(Seed Part) 10000.00 root  data:TableFullScan_14",
+        "  └─TableFullScan_14 10000.00 cop[tikv] table:t2 keep order:true, stats:pseudo"
+      ],
+      [
+        "MergeJoin_31 1.25 root  left outer join, left key:test.t2.c1, right key:test.t1.c1",
+        "├─Sort_29(Build) 9990.00 root  test.t1.c1",
+        "│ └─TableReader_28 9990.00 root  data:Selection_27",
+        "│   └─Selection_27 9990.00 cop[tikv]  not(isnull(test.t1.c1))",
+        "│     └─TableFullScan_26 10000.00 cop[tikv] table:dt2 keep order:false, stats:pseudo",
+        "└─Sort_32(Probe) 1.00 root  test.t2.c1",
+        "  └─CTEFullScan_24 1.00 root CTE:dt1 data:CTE_0",
+        "CTE_0 1.00 root  Recursive CTE",
+        "├─TableReader_20(Seed Part) 10000.00 root  data:TableFullScan_19",
+        "│ └─TableFullScan_19 10000.00 cop[tikv] table:t2 keep order:false, stats:pseudo",
+        "└─Projection_21(Recursive Part) 0.80 root  cast(plus(test.t2.c1, 1), int(11))->test.t2.c1",
+        "  └─Selection_22 0.80 root  lt(test.t2.c1, 3)",
+        "    └─CTETable_23 1.00 root  Scan on CTE_0"
+      ]
+    ]
+  }
+]

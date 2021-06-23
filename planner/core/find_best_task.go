@@ -1961,22 +1961,56 @@ func (ds *DataSource) getOriginalPhysicalIndexScan(prop *property.PhysicalProper
 	return is, cost, rowCount
 }
 
+func (p *LogicalCTE) replaceSortItems(newProp, prop *property.PhysicalProperty) (*property.PhysicalProperty, error) {
+	newSortItems := make([]property.SortItem, 0, len(prop.SortItems))
+	for _, item := range prop.SortItems {
+		newCol, ok := p.cte.seedColMap[item.Col.UniqueID]
+		if !ok {
+			return nil, errors.Errorf("cannot find corresponding column in seed part plan for CTE(colID: %d)", item.Col.UniqueID)
+		}
+		newSortItems = append(newSortItems, property.SortItem{Col: newCol, Desc: item.Desc})
+	}
+	newProp.SortItems = newSortItems
+	newProp.CanAddEnforcer = prop.CanAddEnforcer
+	return newProp, nil
+}
+
 func (p *LogicalCTE) findBestTask(prop *property.PhysicalProperty, planCounter *PlanCounterTp) (t task, cntPlan int64, err error) {
 	if !prop.IsEmpty() && !prop.CanAddEnforcer {
 		return invalidTask, 1, nil
 	}
 	var pcte *PhysicalCTE
+	var isRecursive bool
+	if p.cte.recursivePartLogicalPlan != nil {
+		isRecursive = true
+	}
+
 	if p.cte.physicalCTE != nil {
 		// Already built it.
 		pcte = p.cte.physicalCTE
 	} else {
-		sp, _, err := DoOptimize(context.TODO(), p.ctx, p.cte.optFlag, p.cte.seedPartLogicalPlan)
+		var sp PhysicalPlan
+		var rp PhysicalPlan
+		newProp := &property.PhysicalProperty{
+			TaskTp:      property.RootTaskType,
+			ExpectedCnt: math.MaxFloat64,
+		}
+
+		// If isRecursive, we will enforce property at the end of this function. So default prop is ok.
+		// If SortItems are empty, no need to replace it.
+		if !isRecursive && !prop.IsEmpty() {
+			newProp, err = p.replaceSortItems(newProp, prop)
+			if err != nil {
+				return nil, 1, err
+			}
+		}
+
+		sp, _, err = doOptimize(context.TODO(), p.ctx, p.cte.optFlag, p.cte.seedPartLogicalPlan, newProp)
 		if err != nil {
 			return nil, 1, err
 		}
 
-		var rp PhysicalPlan
-		if p.cte.recursivePartLogicalPlan != nil {
+		if isRecursive {
 			rp, _, err = DoOptimize(context.TODO(), p.ctx, p.cte.optFlag, p.cte.recursivePartLogicalPlan)
 			if err != nil {
 				return nil, 1, err
@@ -1987,10 +2021,9 @@ func (p *LogicalCTE) findBestTask(prop *property.PhysicalProperty, planCounter *
 		pcte.SetSchema(p.schema)
 		p.cte.physicalCTE = pcte
 	}
+
 	t = &rootTask{pcte, pcte.SeedPlan.statsInfo().RowCount, false}
-	if !prop.IsEmpty() {
-		// When got here, `prop.CanAddEnforcer` must be true,
-		// so we just enforce property.
+	if isRecursive && prop.CanAddEnforcer {
 		t = enforceProperty(prop, t, pcte.basePlan.ctx)
 	}
 	return t, 1, nil

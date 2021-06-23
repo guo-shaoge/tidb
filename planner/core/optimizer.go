@@ -134,6 +134,15 @@ func CheckTableLock(ctx sessionctx.Context, is infoschema.InfoSchema, vs []visit
 
 // DoOptimize optimizes a logical plan to a physical plan.
 func DoOptimize(ctx context.Context, sctx sessionctx.Context, flag uint64, logic LogicalPlan) (PhysicalPlan, float64, error) {
+	prop := &property.PhysicalProperty{
+		TaskTp:      property.RootTaskType,
+		ExpectedCnt: math.MaxFloat64,
+	}
+
+	return doOptimize(ctx, sctx, flag, logic, prop)
+}
+
+func doOptimize(ctx context.Context, sctx sessionctx.Context, flag uint64, logic LogicalPlan, prop *property.PhysicalProperty) (PhysicalPlan, float64, error) {
 	// if there is something after flagPrunColumns, do flagPrunColumnsAgain
 	if flag&flagPrunColumns > 0 && flag-flagPrunColumns > flagPrunColumns {
 		flag |= flagPrunColumnsAgain
@@ -149,7 +158,7 @@ func DoOptimize(ctx context.Context, sctx sessionctx.Context, flag uint64, logic
 	if planCounter == 0 {
 		planCounter = -1
 	}
-	physical, cost, err := physicalOptimize(logic, &planCounter)
+	physical, cost, err := physicalOptimize(logic, &planCounter, prop)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -242,17 +251,12 @@ func isLogicalRuleDisabled(r logicalOptRule) bool {
 	return disabled
 }
 
-func physicalOptimize(logic LogicalPlan, planCounter *PlanCounterTp) (PhysicalPlan, float64, error) {
+func physicalOptimize(logic LogicalPlan, planCounter *PlanCounterTp, prop *property.PhysicalProperty) (PhysicalPlan, float64, error) {
 	if _, err := logic.recursiveDeriveStats(nil); err != nil {
 		return nil, 0, err
 	}
 
 	preparePossibleProperties(logic)
-
-	prop := &property.PhysicalProperty{
-		TaskTp:      property.RootTaskType,
-		ExpectedCnt: math.MaxFloat64,
-	}
 
 	logic.SCtx().GetSessionVars().StmtCtx.TaskMapBakTS = 0
 	t, _, err := logic.findBestTask(prop, planCounter)
