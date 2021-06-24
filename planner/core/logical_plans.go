@@ -1196,10 +1196,11 @@ type CTEClass struct {
 	// storageID for this CTE.
 	IDForStorage int
 	// optFlag is the optFlag for the whole CTE.
-	optFlag    uint64
-	HasLimit   bool
-	LimitBeg   uint64
-	LimitEnd   uint64
+	optFlag  uint64
+	HasLimit bool
+	LimitBeg uint64
+	LimitEnd uint64
+	// seedColMap records the mapping of CTE output column and seed part output column.
 	seedColMap map[int64]*expression.Column
 }
 

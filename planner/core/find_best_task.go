@@ -1997,20 +1997,17 @@ func (p *LogicalCTE) findBestTask(prop *property.PhysicalProperty, planCounter *
 		// If isRecursive, we will enforce property at the end of this function. So default prop is ok.
 		// If SortItems are empty, no need to replace it.
 		if !isRecursive && !prop.IsEmpty() {
-			newProp, err = p.replaceSortItems(newProp, prop)
-			if err != nil {
+			if newProp, err = p.replaceSortItems(newProp, prop); err != nil {
 				return nil, 1, err
 			}
 		}
 
-		sp, _, err = doOptimize(context.TODO(), p.ctx, p.cte.optFlag, p.cte.seedPartLogicalPlan, newProp)
-		if err != nil {
+		if sp, _, err = doOptimize(context.TODO(), p.ctx, p.cte.optFlag, p.cte.seedPartLogicalPlan, newProp); err != nil {
 			return nil, 1, err
 		}
 
 		if isRecursive {
-			rp, _, err = DoOptimize(context.TODO(), p.ctx, p.cte.optFlag, p.cte.recursivePartLogicalPlan)
-			if err != nil {
+			if rp, _, err = DoOptimize(context.TODO(), p.ctx, p.cte.optFlag, p.cte.recursivePartLogicalPlan); err != nil {
 				return nil, 1, err
 			}
 		}
