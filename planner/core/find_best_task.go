@@ -1964,11 +1964,9 @@ func (ds *DataSource) getOriginalPhysicalIndexScan(prop *property.PhysicalProper
 func (p *LogicalCTE) replaceSortItems(newProp, prop *property.PhysicalProperty) (*property.PhysicalProperty, error) {
 	newSortItems := make([]property.SortItem, 0, len(prop.SortItems))
 	for _, item := range prop.SortItems {
-		newCol, ok := p.cte.seedColMap[item.Col.UniqueID]
-		if !ok {
-			return nil, errors.Errorf("cannot find corresponding column in seed part plan for CTE(colID: %d)", item.Col.UniqueID)
+		if newCol, ok := p.cte.seedColMap[item.Col.UniqueID]; ok {
+			newSortItems = append(newSortItems, property.SortItem{Col: newCol, Desc: item.Desc})
 		}
-		newSortItems = append(newSortItems, property.SortItem{Col: newCol, Desc: item.Desc})
 	}
 	newProp.SortItems = newSortItems
 	newProp.CanAddEnforcer = prop.CanAddEnforcer
