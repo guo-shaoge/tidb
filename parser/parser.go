@@ -19264,7 +19264,7 @@ yynewstate:
 	case 2150:
 		{
 			t := &ast.TLSOption{
-				Type: ast.TslNone,
+				Type: ast.TlsNone,
 			}
 			parser.yyVAL.item = []*ast.TLSOption{t}
 		}
