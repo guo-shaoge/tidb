@@ -2023,8 +2023,6 @@ func (p *LogicalCTE) findNonRecursiveCTETask(prop *property.PhysicalProperty, pl
 			ExpectedCnt: math.MaxFloat64,
 		}
 
-		// If isRecursive, we will enforce property at the end of this function. So default prop is ok.
-		// If SortItems are empty, no need to replace it.
 		if !prop.IsEmpty() {
 			if newProp, err = p.replaceSortItemsForCTE(newProp, prop); err != nil {
 				return nil, 1, err
@@ -2032,15 +2030,15 @@ func (p *LogicalCTE) findNonRecursiveCTETask(prop *property.PhysicalProperty, pl
 		}
 
 		if sp, _, err = doOptimize(context.TODO(), p.ctx, p.cte.optFlag, p.cte.seedPartLogicalPlan, newProp); err != nil {
-			// Return invalidTask instread of error, because when prop is not empty and CanAddEnforcer is false
-			// We will got an error that cannot find a proper plan. But we may still find
+			// Return invalidTask instread of error, because when prop is not empty and CanAddEnforcer is false.
+			// We will got an error that cannot find a proper plan. But we can still find plan if CanAddEnforcer is true.
 			return invalidTask, 1, nil
 		}
 		pcte = PhysicalCTE{SeedPlan: sp, RecurPlan: nil, CTE: p.cte, cteAsName: p.cteAsName}.Init(p.ctx, p.stats)
 		pcte.SetSchema(p.schema)
 		p.cte.nonRecursivePhyCTEMap[string(propHash)] = pcte
 	}
-	// No need to enforce prop, because it's already setup when we build seed paln using newProp.
+	// No need to enforce prop, because it's already handled when we build seed paln using newProp.
 	t = &rootTask{pcte, pcte.SeedPlan.statsInfo().RowCount, false}
 	return t, 1, nil
 }
