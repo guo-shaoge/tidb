@@ -1195,8 +1195,6 @@ type CTEClass struct {
 	// seedPartLogicalPlan and recursivePartLogicalPlan are the logical plans for the seed part and recursive part of this CTE.
 	seedPartLogicalPlan      LogicalPlan
 	recursivePartLogicalPlan LogicalPlan
-	// physicalCTE is stored here so we can optimize CTE definition only once.
-	physicalCTE *PhysicalCTE
 	// storageID for this CTE.
 	IDForStorage int
 	// optFlag is the optFlag for the whole CTE.
@@ -1206,6 +1204,11 @@ type CTEClass struct {
 	LimitEnd uint64
 	// seedColMap records the mapping of CTE output column and seed part output column.
 	seedColMap map[int64]*expression.Column
+	// recursivePhyCTE records the physical plan of recursive CTE.
+	recursivePhyCTE *PhysicalCTE
+	// nonRecursivePhyCTEMap records the all physical plans of non-recursive CTE.
+	// Key is the hashcode of different Prop.
+	nonRecursivePhyCTEMap map[string]*PhysicalCTE
 }
 
 // LogicalCTE is for CTE.

@@ -3770,7 +3770,7 @@ func (b *PlanBuilder) tryBuildCTE(ctx context.Context, tn *ast.TableName, asName
 			lp := LogicalCTE{cteAsName: tn.Name, cte: &CTEClass{IsDistinct: cte.isDistinct, seedPartLogicalPlan: cte.seedLP,
 				recursivePartLogicalPlan: cte.recurLP, IDForStorage: cte.storageID,
 				optFlag: cte.optFlag, HasLimit: hasLimit, LimitBeg: limitBeg,
-				LimitEnd: limitEnd}}.Init(b.ctx, b.getSelectOffset())
+				LimitEnd: limitEnd, nonRecursivePhyCTEMap: map[string]*PhysicalCTE{}}}.Init(b.ctx, b.getSelectOffset())
 			resSchema, seedColMap := getResultCTESchema(cte.seedLP.Schema(), b.ctx.GetSessionVars())
 			lp.SetSchema(resSchema)
 			lp.cte.seedColMap = seedColMap
