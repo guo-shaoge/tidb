@@ -48,6 +48,7 @@ var IsReadOnly func(node ast.Node, vars *variable.SessionVars) bool
 const (
 	flagGcSubstitute uint64 = 1 << iota
 	flagPrunColumns
+	flagStabilizeResults
 	flagBuildKeyInfo
 	flagDecorrelate
 	flagEliminateAgg
@@ -65,6 +66,7 @@ const (
 var optRuleList = []logicalOptRule{
 	&gcSubstituter{},
 	&columnPruner{},
+	&resultReorder{},
 	&buildKeySolver{},
 	&decorrelateSolver{},
 	&aggregationEliminator{},
@@ -132,6 +134,12 @@ func CheckTableLock(ctx sessionctx.Context, is infoschema.InfoSchema, vs []visit
 	return nil
 }
 
+func checkStableResultMode(sctx sessionctx.Context) bool {
+	s := sctx.GetSessionVars()
+	st := s.StmtCtx
+	return s.EnableStableResultMode && (!st.InInsertStmt && !st.InUpdateStmt && !st.InDeleteStmt && !st.InLoadDataStmt)
+}
+
 // DoOptimize optimizes a logical plan to a physical plan.
 func DoOptimize(ctx context.Context, sctx sessionctx.Context, flag uint64, logic LogicalPlan) (PhysicalPlan, float64, error) {
 	prop := &property.PhysicalProperty{
@@ -146,6 +154,9 @@ func doOptimize(ctx context.Context, sctx sessionctx.Context, flag uint64, logic
 	// if there is something after flagPrunColumns, do flagPrunColumnsAgain
 	if flag&flagPrunColumns > 0 && flag-flagPrunColumns > flagPrunColumns {
 		flag |= flagPrunColumnsAgain
+	}
+	if checkStableResultMode(sctx) {
+		flag |= flagStabilizeResults
 	}
 	logic, err := logicalOptimize(ctx, flag, logic)
 	if err != nil {
