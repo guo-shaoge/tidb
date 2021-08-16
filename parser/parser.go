@@ -17521,14 +17521,14 @@ yynewstate:
 	case 1688:
 		{
 			// Validate input charset name to keep the same behavior as parser of MySQL.
-			name, _, err := charset.GetCharsetInfo(yyS[yypt-0].ident)
+			cs, err := charset.GetCharsetInfo(yyS[yypt-0].ident)
 			if err != nil {
 				yylex.AppendError(ErrUnknownCharacterSet.GenWithStackByArgs(yyS[yypt-0].ident))
 				return 1
 			}
 			// Use charset name returned from charset.GetCharsetInfo(),
 			// to keep lower case of input for generated column restore.
-			parser.yyVAL.ident = name
+			parser.yyVAL.ident = cs.Name
 		}
 	case 1689:
 		{
@@ -19232,14 +19232,14 @@ yynewstate:
 		}
 	case 2118:
 		{
-			name, _, err := charset.GetCharsetInfo("ucs2")
+			cs, err := charset.GetCharsetInfo("ucs2")
 			if err != nil {
 				yylex.AppendError(ErrUnknownCharacterSet.GenWithStackByArgs("ucs2"))
 				return 1
 			}
 			parser.yyVAL.item = &ast.OptBinary{
 				IsBinary: false,
-				Charset:  name,
+				Charset:  cs.Name,
 			}
 		}
 	case 2119:
