@@ -17274,6 +17274,11 @@ yynewstate:
 		}
 	case 1646:
 		{
+			setOprList1 := yyS[yypt-2].item.([]ast.Node)
+			if sel, isSelect := setOprList1[len(setOprList1)-1].(*ast.SelectStmt); isSelect && !sel.IsInBraces {
+				endOffset := parser.endOffset(&yyS[yypt-1])
+				parser.setLastSelectFieldText(sel, endOffset)
+			}
 			setOpr := &ast.SetOprStmt{SelectList: &ast.SetOprSelectList{Selects: yyS[yypt-2].item.([]ast.Node)}}
 			st := yyS[yypt-0].statement.(*ast.SelectStmt)
 			setOpr.Limit = st.Limit
@@ -17287,6 +17292,10 @@ yynewstate:
 	case 1647:
 		{
 			setOprList1 := yyS[yypt-2].item.([]ast.Node)
+			if sel, isSelect := setOprList1[len(setOprList1)-1].(*ast.SelectStmt); isSelect && !sel.IsInBraces {
+				endOffset := parser.endOffset(&yyS[yypt-1])
+				parser.setLastSelectFieldText(sel, endOffset)
+			}
 			var setOprList2 []ast.Node
 			var with2 *ast.WithClause
 			switch x := yyS[yypt-0].expr.(*ast.SubqueryExpr).Query.(type) {
