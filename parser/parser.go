@@ -14908,7 +14908,7 @@ yynewstate:
 	case 1166:
 		{
 			// See https://dev.mysql.com/doc/refman/5.7/en/charset-literal.html
-			co, err := charset.GetDefaultCollation(yyS[yypt-1].ident)
+			co, err := charset.GetDefaultCollationLegacy(yyS[yypt-1].ident)
 			if err != nil {
 				yylex.AppendError(yylex.Errorf("Get collation error for charset: %s", yyS[yypt-1].ident))
 				return 1
@@ -14932,7 +14932,7 @@ yynewstate:
 		}
 	case 1169:
 		{
-			co, err := charset.GetDefaultCollation(yyS[yypt-1].ident)
+			co, err := charset.GetDefaultCollationLegacy(yyS[yypt-1].ident)
 			if err != nil {
 				yylex.AppendError(yylex.Errorf("Get collation error for charset: %s", yyS[yypt-1].ident))
 				return 1
@@ -14948,7 +14948,7 @@ yynewstate:
 		}
 	case 1170:
 		{
-			co, err := charset.GetDefaultCollation(yyS[yypt-1].ident)
+			co, err := charset.GetDefaultCollationLegacy(yyS[yypt-1].ident)
 			if err != nil {
 				yylex.AppendError(yylex.Errorf("Get collation error for charset: %s", yyS[yypt-1].ident))
 				return 1
