@@ -14925,7 +14925,7 @@ yynewstate:
 			// See https://dev.mysql.com/doc/refman/5.7/en/charset-literal.html
 			co, err := charset.GetDefaultCollationLegacy(yyS[yypt-1].ident)
 			if err != nil {
-				yylex.AppendError(yylex.Errorf("Get collation error for charset: %s", yyS[yypt-1].ident))
+				yylex.AppendError(ast.ErrUnknownCharacterSet.GenWithStack("Unsupported character introducer: '%-.64s'", yyS[yypt-1].ident))
 				return 1
 			}
 			expr := ast.NewValueExpr(yyS[yypt-0].ident, parser.charset, parser.collation)
@@ -14949,7 +14949,7 @@ yynewstate:
 		{
 			co, err := charset.GetDefaultCollationLegacy(yyS[yypt-1].ident)
 			if err != nil {
-				yylex.AppendError(yylex.Errorf("Get collation error for charset: %s", yyS[yypt-1].ident))
+				yylex.AppendError(ast.ErrUnknownCharacterSet.GenWithStack("Unsupported character introducer: '%-.64s'", yyS[yypt-1].ident))
 				return 1
 			}
 			expr := ast.NewValueExpr(yyS[yypt-0].item, parser.charset, parser.collation)
@@ -14965,7 +14965,7 @@ yynewstate:
 		{
 			co, err := charset.GetDefaultCollationLegacy(yyS[yypt-1].ident)
 			if err != nil {
-				yylex.AppendError(yylex.Errorf("Get collation error for charset: %s", yyS[yypt-1].ident))
+				yylex.AppendError(ast.ErrUnknownCharacterSet.GenWithStack("Unsupported character introducer: '%-.64s'", yyS[yypt-1].ident))
 				return 1
 			}
 			expr := ast.NewValueExpr(yyS[yypt-0].item, parser.charset, parser.collation)
