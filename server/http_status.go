@@ -219,6 +219,58 @@ func (s *Server) startHTTPServer() {
 		}
 	})
 
+	serverMux.HandleFunc("/debug/pprof/cacheMisses", func(w http.ResponseWriter, r *http.Request) {
+		period, err := strconv.ParseUint(r.FormValue("period"), 10, 64)
+		if period <= 0 || err != nil {
+			period = 10000
+		}
+		handleAdvancedProfile(w, r, "cacheMisses", rpprof.CPUCacheMisses(w, period))
+	})
+
+	serverMux.HandleFunc("/debug/pprof/cycles", func(w http.ResponseWriter, r *http.Request) {
+		period, err := strconv.ParseUint(r.FormValue("period"), 10, 64)
+		if period <= 0 || err != nil {
+			period = 10000000
+		}
+		handleAdvancedProfile(w, r, "cycles", rpprof.CPUCycles(w, period))
+	})
+
+	serverMux.HandleFunc("/debug/pprof/instructions", func(w http.ResponseWriter, r *http.Request) {
+		period, err := strconv.ParseUint(r.FormValue("period"), 10, 64)
+		if period <= 0 || err != nil {
+			period = 10000000
+		}
+		handleAdvancedProfile(w, r, "instructions", rpprof.CPUInstructions(w, period))
+	})
+
+	serverMux.HandleFunc("/debug/pprof/cacheRef", func(w http.ResponseWriter, r *http.Request) {
+		period, err := strconv.ParseUint(r.FormValue("period"), 10, 64)
+		if period <= 0 || err != nil {
+			period = 10000000
+		}
+		handleAdvancedProfile(w, r, "cacheRef", rpprof.CPUCacheReferences(w, period))
+	})
+
+	serverMux.HandleFunc("/debug/pprof/branchMisses", func(w http.ResponseWriter, r *http.Request) {
+		period, err := strconv.ParseUint(r.FormValue("period"), 10, 64)
+		if period <= 0 || err != nil {
+			period = 10000000
+		}
+		handleAdvancedProfile(w, r, "branchMisses", rpprof.CPUBranchMisses(w, period))
+	})
+
+	serverMux.HandleFunc("/debug/pprof/branchInsructions", func(w http.ResponseWriter, r *http.Request) {
+		period, err := strconv.ParseUint(r.FormValue("period"), 10, 64)
+		if period <= 0 || err != nil {
+			period = 10000000
+		}
+		handleAdvancedProfile(w, r, "branchInsructions", rpprof.CPUBranchInstructions(w, period))
+	})
+
+	serverMux.HandleFunc("/debug/pprof/OSTimer", func(w http.ResponseWriter, r *http.Request) {
+		handleAdvancedProfile(w, r, "OSTimer", rpprof.OSTimer(w))
+	})
+
 	serverMux.HandleFunc("/debug/zip", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="tidb_debug"`+time.Now().Format("20060102150405")+".zip"))
 
@@ -345,6 +397,24 @@ func (s *Server) startHTTPServer() {
 		}
 	})
 	s.startStatusServerAndRPCServer(serverMux)
+}
+
+func handleAdvancedProfile(w http.ResponseWriter, r *http.Request, filename string, opt rpprof.ProfilingOption) {
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	sec, err := strconv.ParseInt(r.FormValue("seconds"), 10, 64)
+	if sec <= 0 || err != nil {
+		sec = 30
+	}
+
+	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
+
+	if err = rpprof.StartCPUProfileWithConfig(opt); err != nil {
+		serveError(w, http.StatusInternalServerError, "Could not enable CPU profiling: "+err.Error())
+		return
+	}
+	time.Sleep(time.Second * time.Duration(sec))
+	rpprof.StopCPUProfile()
 }
 
 func (s *Server) startStatusServerAndRPCServer(serverMux *http.ServeMux) {
