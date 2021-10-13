@@ -27,7 +27,6 @@ import (
 	"net/http"
 	"net/http/pprof"
 	"net/url"
-	"os"
 	"runtime"
 	rpprof "runtime/pprof"
 	"strconv"
@@ -73,9 +72,7 @@ func serveError(w http.ResponseWriter, status int, txt string) {
 func sleepWithCtx(ctx context.Context, d time.Duration) {
 	select {
 	case <-time.After(d):
-		fmt.Println("d done")
 	case <-ctx.Done():
-		fmt.Println("got ctx.Done done")
 	}
 }
 
@@ -256,57 +253,12 @@ func (s *Server) startHTTPServer() {
 		}
 
 		// dump profile
-		cacheMisses, err := zw.Create("cacheMisses.prof")
-		if err != nil {
-			serveError(w, http.StatusInternalServerError, fmt.Sprintf("Create zipped %s fail: %v", "cacheMisses", err))
-			return
-		}
-		cyc, err := zw.Create("cycles.prof")
-		if err != nil {
-			serveError(w, http.StatusInternalServerError, fmt.Sprintf("Create zipped %s fail: %v", "cycles", err))
-			return
-		}
-		ins, err := zw.Create("instructions.prof")
-		if err != nil {
-			serveError(w, http.StatusInternalServerError, fmt.Sprintf("Create zipped %s fail: %v", "instructions", err))
-			return
-		}
-		cacheRef, err := zw.Create("cacheRef.prof")
-		if err != nil {
-			serveError(w, http.StatusInternalServerError, fmt.Sprintf("Create zipped %s fail: %v", "cacheRef", err))
-			return
-		}
-		brMisses, err := zw.Create("branchMisses.prof")
-		if err != nil {
-			serveError(w, http.StatusInternalServerError, fmt.Sprintf("Create zipped %s fail: %v", "branchMisses", err))
-			return
-		}
-		profile, err := zw.Create("profile")
+		fw, err := zw.Create("profile")
 		if err != nil {
 			serveError(w, http.StatusInternalServerError, fmt.Sprintf("Create zipped %s fail: %v", "profile", err))
 			return
 		}
-		// rawCPU, err := zw.Create("rawCPU.prof")
-		// if err != nil {
-		// 	serveError(w, http.StatusInternalServerError, fmt.Sprintf("Create zipped %s fail: %v", "rawCPU", err))
-		// 	return
-		// }
-
-		// if err := tracecpu.StartCPUProfile(profile); err != nil {
-		// 	serveError(w, http.StatusInternalServerError,
-		// 		fmt.Sprintf("Could not enable CPU profiling: %s", err))
-		// 	return
-		// }
-		if err := os.Setenv("GO_PPROF_ENABLE_MULTIPLE_CPU_PROFILES", "true"); err != nil {
-			serveError(w, http.StatusInternalServerError, fmt.Sprintf("set env GO_PPROF_ENABLE_MULTIPLE_CPU_PROFILES failed: %v", err))
-			return
-		}
-		if err := rpprof.StartCPUProfileWithConfig(rpprof.CPUCacheMisses(cacheMisses, 10000),
-			rpprof.CPUCycles(cyc, 1000000),
-			rpprof.CPUInstructions(ins, 1000000),
-			rpprof.CPUCacheReferences(cacheRef, 10000),
-			rpprof.CPUBranchMisses(brMisses, 10000),
-			rpprof.OSTimer(profile)); err != nil {
+		if err := tracecpu.StartCPUProfile(fw); err != nil {
 			serveError(w, http.StatusInternalServerError,
 				fmt.Sprintf("Could not enable CPU profiling: %s", err))
 			return
@@ -316,15 +268,14 @@ func (s *Server) startHTTPServer() {
 			sec = 10
 		}
 		sleepWithCtx(r.Context(), time.Duration(sec)*time.Second)
-		// err = tracecpu.StopCPUProfile()
-		// if err != nil {
-		// 	serveError(w, http.StatusInternalServerError, fmt.Sprintf("Create zipped %s fail: %v", "config", err))
-		// 	return
-		// }
-		rpprof.StopCPUProfile()
+		err = tracecpu.StopCPUProfile()
+		if err != nil {
+			serveError(w, http.StatusInternalServerError, fmt.Sprintf("Create zipped %s fail: %v", "config", err))
+			return
+		}
 
 		// dump config
-		fw, err := zw.Create("config")
+		fw, err = zw.Create("config")
 		if err != nil {
 			serveError(w, http.StatusInternalServerError, fmt.Sprintf("Create zipped %s fail: %v", "config", err))
 			return
@@ -345,15 +296,9 @@ func (s *Server) startHTTPServer() {
 		}
 		_, err = fw.Write([]byte(printer.GetTiDBInfo()))
 		terror.Log(err)
-		if err != nil {
-			fmt.Println("gjt err got err 1: %v", err)
-		}
 
 		err = zw.Close()
 		terror.Log(err)
-		if err != nil {
-			fmt.Println("gjt err got err 2: %v", err)
-		}
 	})
 
 	// failpoint is enabled only for tests so we can add some http APIs here for tests.
