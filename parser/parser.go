@@ -20537,14 +20537,34 @@ yynewstate:
 		}
 	case 2340:
 		{
-			r, err := convertToRole(yyS[yypt-2].item.([]*ast.RoleOrPriv))
-			if err != nil {
-				yylex.AppendError(err)
-				return 1
-			}
-			parser.yyVAL.statement = &ast.RevokeRoleStmt{
-				Roles: r,
-				Users: yyS[yypt-0].item.([]*auth.UserIdentity),
+			// MySQL has special syntax for REVOKE ALL [PRIVILEGES], GRANT OPTION
+			// which uses the RevokeRoleStmt syntax but is of type RevokeStmt.
+			// It is documented at https://dev.mysql.com/doc/refman/5.7/en/revoke.html
+			// as the "second syntax" for REVOKE. It is only valid if *both*
+			// ALL PRIVILEGES + GRANT OPTION are specified in that order.
+			if isRevokeAllGrant(yyS[yypt-2].item.([]*ast.RoleOrPriv)) {
+				var users []*ast.UserSpec
+				for _, u := range yyS[yypt-0].item.([]*auth.UserIdentity) {
+					users = append(users, &ast.UserSpec{
+						User: u,
+					})
+				}
+				parser.yyVAL.statement = &ast.RevokeStmt{
+					Privs:      []*ast.PrivElem{{Priv: mysql.AllPriv}, {Priv: mysql.GrantPriv}},
+					ObjectType: ast.ObjectTypeNone,
+					Level:      &ast.GrantLevel{Level: ast.GrantLevelGlobal},
+					Users:      users,
+				}
+			} else {
+				r, err := convertToRole(yyS[yypt-2].item.([]*ast.RoleOrPriv))
+				if err != nil {
+					yylex.AppendError(err)
+					return 1
+				}
+				parser.yyVAL.statement = &ast.RevokeRoleStmt{
+					Roles: r,
+					Users: yyS[yypt-0].item.([]*auth.UserIdentity),
+				}
 			}
 		}
 	case 2341:
