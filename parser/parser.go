@@ -15623,11 +15623,11 @@ yynewstate:
 		}
 	case 1328:
 		{
-			nilVal := ast.NewValueExpr(nil, parser.charset, parser.collation)
+			spaceVal := ast.NewValueExpr(" ", parser.charset, parser.collation)
 			direction := &ast.TrimDirectionExpr{Direction: yyS[yypt-3].item.(ast.TrimDirectionType)}
 			parser.yyVAL.expr = &ast.FuncCallExpr{
 				FnName: model.NewCIStr(yyS[yypt-5].ident),
-				Args:   []ast.ExprNode{yyS[yypt-1].expr, nilVal, direction},
+				Args:   []ast.ExprNode{yyS[yypt-1].expr, spaceVal, direction},
 			}
 		}
 	case 1329:
