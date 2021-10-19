@@ -648,24 +648,6 @@ func (e *HashJoinExec) join2ChunkForOuterHashJoin(workerID uint, probeSideChk *c
 func (e *HashJoinExec) Next(ctx context.Context, req *chunk.Chunk) (err error) {
 	if !e.prepared {
 		e.buildFinished = make(chan error, 1)
-		buildKeyColIdx := make([]int, len(e.buildKeys))
-		for i := range e.buildKeys {
-			buildKeyColIdx[i] = e.buildKeys[i].Index
-		}
-		hCtx := &hashContext{
-			allTypes:  e.buildTypes,
-			keyColIdx: buildKeyColIdx,
-		}
-		e.rowContainer = newHashRowContainer(e.ctx, int(e.buildSideEstCount), hCtx)
-		// we shallow copies rowContainer for each probe worker to avoid lock contention
-		e.rowContainerForProbe = make([]*hashRowContainer, e.concurrency)
-		for i := uint(0); i < e.concurrency; i++ {
-			if i == 0 {
-				e.rowContainerForProbe[i] = e.rowContainer
-			} else {
-				e.rowContainerForProbe[i] = e.rowContainer.ShallowCopy()
-			}
-		}
 		go util.WithRecovery(func() {
 			defer trace.StartRegion(ctx, "HashJoinHashTableBuilder").End()
 			e.fetchAndBuildHashTable(ctx)
@@ -745,26 +727,16 @@ func (e *HashJoinExec) fetchAndBuildHashTable(ctx context.Context) {
 func (e *HashJoinExec) buildHashTableForList(buildSideResultCh <-chan *chunk.Chunk) error {
 	var err error
 	var selected []bool
-	e.rowContainer.GetMemTracker().AttachTo(e.memTracker)
-	e.rowContainer.GetMemTracker().SetLabel(memory.LabelForBuildSideResult)
-	e.rowContainer.GetDiskTracker().AttachTo(e.diskTracker)
-	e.rowContainer.GetDiskTracker().SetLabel(memory.LabelForBuildSideResult)
-	if config.GetGlobalConfig().OOMUseTmpStorage {
-		actionSpill := e.rowContainer.ActionSpill()
-		failpoint.Inject("testRowContainerSpill", func(val failpoint.Value) {
-			if val.(bool) {
-				actionSpill = e.rowContainer.rowContainer.ActionSpillForTest()
-				defer actionSpill.(*chunk.SpillDiskAction).WaitForTest()
-			}
-		})
-		e.ctx.GetSessionVars().StmtCtx.MemTracker.FallbackOldAndSetNewAction(actionSpill)
-	}
+	var totalRows uint64
+	var allChks []*chunk.Chunk
 	for chk := range buildSideResultCh {
 		if e.finished.Load().(bool) {
 			return nil
 		}
 		if !e.useOuterToBuild {
-			err = e.rowContainer.PutChunk(chk, e.isNullEQ)
+			// err = e.rowContainer.PutChunk(chk, e.isNullEQ)
+			totalRows += uint64(chk.NumRows())
+			allChks = append(allChks, chk)
 		} else {
 			var bitMap = bitmap.NewConcurrentBitmap(chk.NumRows())
 			e.outerMatchedStatus = append(e.outerMatchedStatus, bitMap)
@@ -780,6 +752,45 @@ func (e *HashJoinExec) buildHashTableForList(buildSideResultCh <-chan *chunk.Chu
 			}
 		}
 		if err != nil {
+			return err
+		}
+	}
+	buildKeyColIdx := make([]int, len(e.buildKeys))
+	for i := range e.buildKeys {
+		buildKeyColIdx[i] = e.buildKeys[i].Index
+	}
+	hCtx := &hashContext{
+		allTypes:  e.buildTypes,
+		keyColIdx: buildKeyColIdx,
+	}
+	// e.rowContainer = newHashRowContainer(e.ctx, int(e.buildSideEstCount), hCtx)
+	e.rowContainer = newSimpleHashRowContainer(e.ctx, totalRows, hCtx)
+	// we shallow copies rowContainer for each probe worker to avoid lock contention
+	e.rowContainerForProbe = make([]*hashRowContainer, e.concurrency)
+	for i := uint(0); i < e.concurrency; i++ {
+		if i == 0 {
+			e.rowContainerForProbe[i] = e.rowContainer
+		} else {
+			e.rowContainerForProbe[i] = e.rowContainer.ShallowCopy()
+		}
+	}
+	e.rowContainer.GetMemTracker().AttachTo(e.memTracker)
+	e.rowContainer.GetMemTracker().SetLabel(memory.LabelForBuildSideResult)
+	e.rowContainer.GetDiskTracker().AttachTo(e.diskTracker)
+	e.rowContainer.GetDiskTracker().SetLabel(memory.LabelForBuildSideResult)
+	if config.GetGlobalConfig().OOMUseTmpStorage {
+		actionSpill := e.rowContainer.ActionSpill()
+		failpoint.Inject("testRowContainerSpill", func(val failpoint.Value) {
+			if val.(bool) {
+				actionSpill = e.rowContainer.rowContainer.ActionSpillForTest()
+				defer actionSpill.(*chunk.SpillDiskAction).WaitForTest()
+			}
+		})
+		e.ctx.GetSessionVars().StmtCtx.MemTracker.FallbackOldAndSetNewAction(actionSpill)
+	}
+
+	for _, chk := range allChks {
+		if err = e.rowContainer.PutChunk(chk, e.isNullEQ); err != nil {
 			return err
 		}
 	}

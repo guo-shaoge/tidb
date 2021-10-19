@@ -97,6 +97,19 @@ func newHashRowContainer(sCtx sessionctx.Context, estCount int, hCtx *hashContex
 	return c
 }
 
+func newSimpleHashRowContainer(sCtx sessionctx.Context, count uint64, hCtx *hashContext) *hashRowContainer {
+	maxChunkSize := sCtx.GetSessionVars().MaxChunkSize
+	rc := chunk.NewRowContainer(hCtx.allTypes, maxChunkSize)
+	c := &hashRowContainer{
+		sc:           sCtx.GetSessionVars().StmtCtx,
+		hCtx:         hCtx,
+		stat:         new(hashStatistic),
+		hashTable:    newSimpleHashTable(count, 3),
+		rowContainer: rc,
+	}
+	return c
+}
+
 func (c *hashRowContainer) ShallowCopy() *hashRowContainer {
 	newHRC := *c
 	newHRC.rowContainer = c.rowContainer.ShallowCopyWithNewMutex()
@@ -271,6 +284,78 @@ type baseHashTable interface {
 	Put(hashKey uint64, rowPtr chunk.RowPtr)
 	Get(hashKey uint64) (rowPtrs []chunk.RowPtr)
 	Len() uint64
+}
+
+type simpleHashTable struct {
+	buckets    []int64
+	totalCnt   uint64
+	curCnt     int64
+	allEntries []simpleEntry
+	bitmask    uint64
+}
+
+type simpleEntry struct {
+	key     uint64
+	val     chunk.RowPtr
+	nextIdx int64
+}
+
+func NextPowerOfTwo(v uint64) uint64 {
+	v--
+	v |= v >> 1
+	v |= v >> 2
+	v |= v >> 4
+	v |= v >> 8
+	v |= v >> 16
+	v |= v >> 32
+	v++
+	return v
+}
+
+func newSimpleHashTable(count uint64, loadFactor float32) *simpleHashTable {
+	// TODO: maybe a max bucket size, such as 8192.
+	bucketCnt := NextPowerOfTwo(uint64(float32(count) / loadFactor))
+	bucketLimit := (2 << 16)
+	if bucketCnt > uint64(bucketLimit) {
+		bucketCnt = uint64(bucketLimit)
+	}
+	res := &simpleHashTable{
+		buckets:    make([]int64, bucketCnt),
+		totalCnt:   count,
+		allEntries: make([]simpleEntry, count, count),
+		bitmask:    bucketCnt - 1,
+	}
+	for i := 0; i < len(res.buckets); i++ {
+		res.buckets[i] = -1
+	}
+	return res
+}
+
+func (ht *simpleHashTable) Put(key uint64, val chunk.RowPtr) {
+	idx := key & ht.bitmask
+
+	ht.allEntries[ht.curCnt].key = key
+	ht.allEntries[ht.curCnt].val = val
+	ht.allEntries[ht.curCnt].nextIdx = ht.buckets[idx]
+	ht.buckets[idx] = ht.curCnt
+	ht.curCnt++
+}
+
+func (ht *simpleHashTable) Get(key uint64) (rowPtrs []chunk.RowPtr) {
+	entry := ht.buckets[key&ht.bitmask]
+	var target simpleEntry
+	for entry != -1 {
+		target = ht.allEntries[entry]
+		if target.key == key {
+			rowPtrs = append(rowPtrs, target.val)
+		}
+		entry = target.nextIdx
+	}
+	return
+}
+
+func (ht *simpleHashTable) Len() uint64 {
+	return uint64(ht.curCnt)
 }
 
 // TODO (fangzhuhe) remove unsafeHashTable later if it not used anymore
