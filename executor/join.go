@@ -448,6 +448,7 @@ func (e *HashJoinExec) runJoinWorker(workerID uint, probeKeyColIdx []int) {
 		}
 		start := time.Now()
 		if e.useOuterToBuild {
+			panic("not impl for OuterHashJoin")
 			ok, joinResult = e.join2ChunkForOuterHashJoin(workerID, probeSideResult, hCtx, e.rowContainerForProbe[workerID], joinResult)
 		} else {
 			ok, joinResult = e.join2Chunk(workerID, probeSideResult, hCtx, e.rowContainerForProbe[workerID], joinResult, selected)
@@ -563,15 +564,20 @@ func (e *HashJoinExec) join2Chunk(workerID uint, probeSideChk *chunk.Chunk, hCtx
 		return false, joinResult
 	}
 
-	hCtx.initHash(probeSideChk.NumRows())
-	for keyIdx, i := range hCtx.keyColIdx {
-		ignoreNull := len(e.isNullEQ) > keyIdx && e.isNullEQ[keyIdx]
-		err = codec.HashChunkSelected(rowContainer.sc, hCtx.hashVals, probeSideChk, hCtx.allTypes[i], i, hCtx.buf, hCtx.hasNull, selected, ignoreNull)
-		if err != nil {
-			joinResult.err = err
-			return false, joinResult
-		}
+	// hCtx.initHash(probeSideChk.NumRows())
+	// for keyIdx, i := range hCtx.keyColIdx {
+	// 	ignoreNull := len(e.isNullEQ) > keyIdx && e.isNullEQ[keyIdx]
+	// 	err = codec.HashChunkSelected(rowContainer.sc, hCtx.hashVals, probeSideChk, hCtx.allTypes[i], i, hCtx.buf, hCtx.hasNull, selected, ignoreNull)
+	// 	if err != nil {
+	// 		joinResult.err = err
+	// 		return false, joinResult
+	// 	}
+	// }
+	if e.outerFilter != nil {
+		panic("not impl selected yet")
 	}
+	hCtx.hasNull = make([]bool, probeSideChk.NumRows())
+	hashVals := codec.HashChunkForJoin(rowContainer.sc, probeSideChk, hCtx.allTypes, hCtx.keyColIdx)
 
 	for i := range selected {
 		killed := atomic.LoadUint32(&e.ctx.GetSessionVars().Killed) == 1
@@ -587,7 +593,8 @@ func (e *HashJoinExec) join2Chunk(workerID uint, probeSideChk *chunk.Chunk, hCtx
 		if !selected[i] || hCtx.hasNull[i] { // process unmatched probe side rows
 			e.joiners[workerID].onMissMatch(false, probeSideChk.GetRow(i), joinResult.chk)
 		} else { // process matched probe side rows
-			probeKey, probeRow := hCtx.hashVals[i].Sum64(), probeSideChk.GetRow(i)
+			// probeKey, probeRow := hCtx.hashVals[i].Sum64(), probeSideChk.GetRow(i)
+			probeKey, probeRow := hashVals[i], probeSideChk.GetRow(i)
 			ok, joinResult = e.joinMatchedProbeSideRow2Chunk(workerID, probeKey, probeRow, hCtx, rowContainer, joinResult)
 			if !ok {
 				return false, joinResult

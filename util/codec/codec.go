@@ -661,6 +661,54 @@ func HashChunkSelected(sc *stmtctx.StatementContext, h []hash.Hash64, chk *chunk
 	return
 }
 
+//go:linkname runtime_memhash runtime.memhash
+//go:noescape
+func runtime_memhash(p unsafe.Pointer, seed, s uintptr) uintptr
+
+func HashChunkForJoin(sc *stmtctx.StatementContext, chk *chunk.Chunk, allTypes []*types.FieldType, keyColIdx []int) (ret []uint64) {
+	// TODO: ignoreNulls
+	var tmpBuf []byte
+	var tmpBuf1 []byte
+	var tmpF float64
+	numRows := chk.NumRows()
+	for rowIdx := 0; rowIdx < numRows; rowIdx++ {
+		tmpBuf = tmpBuf[:0]
+		tmpBuf = tmpBuf[:0]
+		for _, colIdx := range keyColIdx {
+			col := chk.Column(colIdx)
+			if col.IsNull(rowIdx) {
+				tmpBuf = append(tmpBuf, NilFlag)
+			} else {
+				switch allTypes[colIdx].Tp {
+				case mysql.TypeTiny, mysql.TypeShort, mysql.TypeInt24, mysql.TypeLong, mysql.TypeLonglong, mysql.TypeYear:
+					if !mysql.HasUnsignedFlag(allTypes[colIdx].Flag) && col.GetInt64(rowIdx) < 0 {
+						tmpBuf = append(tmpBuf, varintFlag)
+					} else {
+						tmpBuf = append(tmpBuf, uvarintFlag)
+					}
+					tmpBuf = append(tmpBuf, col.GetRaw(rowIdx)...)
+				case mysql.TypeVarchar, mysql.TypeVarString, mysql.TypeString, mysql.TypeBlob, mysql.TypeTinyBlob, mysql.TypeMediumBlob, mysql.TypeLongBlob:
+					tmpBuf1 = col.GetBytes(rowIdx)
+					tmpBuf1 = ConvertByCollation(tmpBuf1, allTypes[colIdx])
+					tmpBuf = append(tmpBuf, compactBytesFlag)
+					tmpBuf = append(tmpBuf, tmpBuf1...)
+				case mysql.TypeDouble:
+					tmpF = col.GetFloat64(rowIdx)
+					tmpBuf = append(tmpBuf, floatFlag)
+					if tmpF == 0 {
+						tmpF = 0
+					}
+					tmpBuf = append(tmpBuf, ((*[sizeFloat64]byte)(unsafe.Pointer(&tmpF))[:])...)
+				default:
+					panic("not impl yet")
+				}
+			}
+		}
+		ret = append(ret, uint64(runtime_memhash(*(*unsafe.Pointer)(unsafe.Pointer(&tmpBuf)), 0, uintptr(len(tmpBuf)))))
+	}
+	return
+}
+
 // HashChunkRow writes the encoded values to w.
 // If two rows are logically equal, it will generate the same bytes.
 func HashChunkRow(sc *stmtctx.StatementContext, w io.Writer, row chunk.Row, allTypes []*types.FieldType, colIdx []int, buf []byte) (err error) {

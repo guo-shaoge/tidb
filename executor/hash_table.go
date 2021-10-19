@@ -165,24 +165,35 @@ func (c *hashRowContainer) PutChunkSelected(chk *chunk.Chunk, selected, ignoreNu
 	if err != nil {
 		return err
 	}
-	numRows := chk.NumRows()
-	c.hCtx.initHash(numRows)
+	// numRows := chk.NumRows()
+	// c.hCtx.initHash(numRows)
 
-	hCtx := c.hCtx
-	for keyIdx, colIdx := range c.hCtx.keyColIdx {
-		ignoreNull := len(ignoreNulls) > keyIdx && ignoreNulls[keyIdx]
-		err := codec.HashChunkSelected(c.sc, hCtx.hashVals, chk, hCtx.allTypes[colIdx], colIdx, hCtx.buf, hCtx.hasNull, selected, ignoreNull)
-		if err != nil {
-			return errors.Trace(err)
-		}
+	// hCtx := c.hCtx
+	// for keyIdx, colIdx := range c.hCtx.keyColIdx {
+	// 	ignoreNull := len(ignoreNulls) > keyIdx && ignoreNulls[keyIdx]
+	// 	err := codec.HashChunkSelected(c.sc, hCtx.hashVals, chk, hCtx.allTypes[colIdx], colIdx, hCtx.buf, hCtx.hasNull, selected, ignoreNull)
+	// 	if err != nil {
+	// 		return errors.Trace(err)
+	// 	}
+	// }
+	// for i := 0; i < numRows; i++ {
+	// 	if (selected != nil && !selected[i]) || c.hCtx.hasNull[i] {
+	// 		continue
+	// 	}
+	// 	key := c.hCtx.hashVals[i].Sum64()
+	// 	rowPtr := chunk.RowPtr{ChkIdx: chkIdx, RowIdx: uint32(i)}
+	// 	c.hashTable.Put(key, rowPtr)
+	// }
+
+	// TODO: selected
+	if selected != nil || ignoreNulls != nil {
+		err := errors.New("selected not impl yet")
+		panic(err)
 	}
-	for i := 0; i < numRows; i++ {
-		if (selected != nil && !selected[i]) || c.hCtx.hasNull[i] {
-			continue
-		}
-		key := c.hCtx.hashVals[i].Sum64()
+	hashVals := codec.HashChunkForJoin(c.sc, chk, c.hCtx.allTypes, c.hCtx.keyColIdx)
+	for i, hashVal := range hashVals {
 		rowPtr := chunk.RowPtr{ChkIdx: chkIdx, RowIdx: uint32(i)}
-		c.hashTable.Put(key, rowPtr)
+		c.hashTable.Put(hashVal, rowPtr)
 	}
 	return nil
 }

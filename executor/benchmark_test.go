@@ -1056,20 +1056,20 @@ func BenchmarkHashJoinExec(b *testing.B) {
 
 	b.ReportAllocs()
 	cas := defaultHashJoinTestCase(cols, 0, false)
-	b.Run(fmt.Sprintf("%v", cas), func(b *testing.B) {
-		benchmarkHashJoinExecWithCase(b, cas)
-	})
+	// b.Run(fmt.Sprintf("%v", cas), func(b *testing.B) {
+	// 	benchmarkHashJoinExecWithCase(b, cas)
+	// })
 
-	cas.keyIdx = []int{0}
-	b.Run(fmt.Sprintf("%v", cas), func(b *testing.B) {
-		benchmarkHashJoinExecWithCase(b, cas)
-	})
+	// cas.keyIdx = []int{0}
+	// b.Run(fmt.Sprintf("%v", cas), func(b *testing.B) {
+	// 	benchmarkHashJoinExecWithCase(b, cas)
+	// })
 
-	cas.keyIdx = []int{0}
-	cas.disk = true
-	b.Run(fmt.Sprintf("%v", cas), func(b *testing.B) {
-		benchmarkHashJoinExecWithCase(b, cas)
-	})
+	// cas.keyIdx = []int{0}
+	// cas.disk = true
+	// b.Run(fmt.Sprintf("%v", cas), func(b *testing.B) {
+	// 	benchmarkHashJoinExecWithCase(b, cas)
+	// })
 
 	// Replace the wide string column with double column
 	cols = []*types.FieldType{
