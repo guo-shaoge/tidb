@@ -21,6 +21,7 @@ import (
 	"hash/fnv"
 	"sync/atomic"
 	"time"
+	"unsafe"
 
 	"github.com/pingcap/errors"
 	"github.com/pingcap/tidb/sessionctx"
@@ -293,15 +294,15 @@ type simpleHashTable struct {
 	buckets    []int64
 	totalCnt   uint64
 	curCnt     int64
-	allEntries []simpleEntry
+	allEntries []uint64
 	bitmask    uint64
 }
 
-type simpleEntry struct {
-	key     uint64
-	val     chunk.RowPtr
-	nextIdx int64
-}
+// type simpleEntry struct {
+// 	key     uint64
+// 	val     chunk.RowPtr
+// 	nextIdx int64
+// }
 
 func NextPowerOfTwo(v uint64) uint64 {
 	v--
@@ -330,7 +331,7 @@ func newSimpleHashTable(count uint64, loadFactor float32) *simpleHashTable {
 	res := &simpleHashTable{
 		buckets:    make([]int64, bucketCnt),
 		totalCnt:   count,
-		allEntries: make([]simpleEntry, count, count),
+		allEntries: make([]uint64, count * 4, count * 4),
 		bitmask:    bucketCnt - 1,
 	}
 	for i := 0; i < len(res.buckets); i++ {
@@ -342,28 +343,26 @@ func newSimpleHashTable(count uint64, loadFactor float32) *simpleHashTable {
 func (ht *simpleHashTable) Put(key uint64, val chunk.RowPtr) {
 	idx := key & ht.bitmask
 
-	ht.allEntries[ht.curCnt].key = key
-	ht.allEntries[ht.curCnt].val = val
-	ht.allEntries[ht.curCnt].nextIdx = ht.buckets[idx]
+	ht.allEntries[ht.curCnt] = key
+	ht.allEntries[ht.curCnt + 1] = *((*uint64)(unsafe.Pointer(&val)))
+	ht.allEntries[ht.curCnt + 2]= uint64(ht.buckets[idx])
 	ht.buckets[idx] = ht.curCnt
-	ht.curCnt++
+	ht.curCnt += 3
 }
 
 func (ht *simpleHashTable) Get(key uint64) (rowPtrs []chunk.RowPtr) {
 	entry := ht.buckets[key&ht.bitmask]
-	var target simpleEntry
 	for entry != -1 {
-		target = ht.allEntries[entry]
-		if target.key == key {
-			rowPtrs = append(rowPtrs, target.val)
+		if ht.allEntries[entry] == key {
+			rowPtrs = append(rowPtrs, *((*chunk.RowPtr)(unsafe.Pointer(&ht.allEntries[entry+1]))))
 		}
-		entry = target.nextIdx
+		entry = int64(ht.allEntries[entry+2])
 	}
 	return
 }
 
 func (ht *simpleHashTable) Len() uint64 {
-	return uint64(ht.curCnt)
+	return uint64(ht.curCnt/3)
 }
 
 // TODO (fangzhuhe) remove unsafeHashTable later if it not used anymore
