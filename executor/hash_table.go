@@ -108,7 +108,7 @@ func newSimpleHashRowContainer(sCtx sessionctx.Context, count uint64, hCtx *hash
 		sc:           sCtx.GetSessionVars().StmtCtx,
 		hCtx:         hCtx,
 		stat:         new(hashStatistic),
-		hashTable:    newSimpleHashTable(count, 3),
+		hashTable:    newMulSimpleHashTable(count, 3),
 		rowContainer: rc,
 	}
 	return c
@@ -290,6 +290,39 @@ type baseHashTable interface {
 	Len() uint64
 }
 
+var mulSimpleHashTableBucketCnt uint64 = 512
+
+type mulSimpleHashTable struct {
+	buckets []*simpleHashTable
+	bitmask uint64
+}
+
+func newMulSimpleHashTable(count uint64, loadFactor float32) *mulSimpleHashTable {
+	res := &mulSimpleHashTable{
+		bitmask: mulSimpleHashTableBucketCnt - 1,
+	}
+	res.buckets = make([]*simpleHashTable, mulSimpleHashTableBucketCnt, mulSimpleHashTableBucketCnt)
+	for i := 0; i < len(res.buckets); i++ {
+		res.buckets[i] = newSimpleHashTable(count, loadFactor)
+	}
+	return res
+}
+
+func (ht *mulSimpleHashTable) Put(key uint64, val chunk.RowPtr) {
+	ht.buckets[key&ht.bitmask].Put(key, val)
+}
+
+func (ht *mulSimpleHashTable) Get(key uint64) (rowPtrs []chunk.RowPtr) {
+	return ht.buckets[key&ht.bitmask].Get(key)
+}
+
+func (ht *mulSimpleHashTable) Len() (ret uint64) {
+	for i := 0; i < len(ht.buckets); i++ {
+		ret += ht.buckets[i].Len()
+	}
+	return
+}
+
 type simpleHashTable struct {
 	buckets    []int64
 	totalCnt   uint64
@@ -331,7 +364,7 @@ func newSimpleHashTable(count uint64, loadFactor float32) *simpleHashTable {
 	res := &simpleHashTable{
 		buckets:    make([]int64, bucketCnt),
 		totalCnt:   count,
-		allEntries: make([]uint64, count * 4, count * 4),
+		allEntries: make([]uint64, count*4, count*4),
 		bitmask:    bucketCnt - 1,
 	}
 	for i := 0; i < len(res.buckets); i++ {
@@ -344,8 +377,8 @@ func (ht *simpleHashTable) Put(key uint64, val chunk.RowPtr) {
 	idx := key & ht.bitmask
 
 	ht.allEntries[ht.curCnt] = key
-	ht.allEntries[ht.curCnt + 1] = *((*uint64)(unsafe.Pointer(&val)))
-	ht.allEntries[ht.curCnt + 2]= uint64(ht.buckets[idx])
+	ht.allEntries[ht.curCnt+1] = *((*uint64)(unsafe.Pointer(&val)))
+	ht.allEntries[ht.curCnt+2] = uint64(ht.buckets[idx])
 	ht.buckets[idx] = ht.curCnt
 	ht.curCnt += 3
 }
@@ -362,7 +395,7 @@ func (ht *simpleHashTable) Get(key uint64) (rowPtrs []chunk.RowPtr) {
 }
 
 func (ht *simpleHashTable) Len() uint64 {
-	return uint64(ht.curCnt/3)
+	return uint64(ht.curCnt / 3)
 }
 
 // TODO (fangzhuhe) remove unsafeHashTable later if it not used anymore
