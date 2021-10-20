@@ -15,6 +15,7 @@
 package executor
 
 import (
+	// "context"
 	"fmt"
 	"hash"
 	"hash/fnv"
@@ -29,7 +30,9 @@ import (
 	"github.com/pingcap/tidb/util/codec"
 	"github.com/pingcap/tidb/util/disk"
 	"github.com/pingcap/tidb/util/execdetails"
+	// "github.com/pingcap/tidb/util/logutil"
 	"github.com/pingcap/tidb/util/memory"
+	// "go.uber.org/zap"
 )
 
 // hashContext keeps the needed hash context of a db table in hash join.
@@ -315,9 +318,14 @@ func NextPowerOfTwo(v uint64) uint64 {
 func newSimpleHashTable(count uint64, loadFactor float32) *simpleHashTable {
 	// TODO: maybe a max bucket size, such as 8192.
 	bucketCnt := NextPowerOfTwo(uint64(float32(count) / loadFactor))
-	bucketLimit := (2 << 16)
-	if bucketCnt > uint64(bucketLimit) {
-		bucketCnt = uint64(bucketLimit)
+	// fmt.Println("gjt debug ", count, loadFactor, bucketCnt)
+	// logutil.Logger(context.TODO()).Error("gjtdebug", zap.Uint64("count", count), zap.Float32("loadFactor", loadFactor), zap.Uint64("bucketCnt", bucketCnt))
+	// bucketLimit := (2 << 16)
+	// if bucketCnt > uint64(bucketLimit) {
+	// 	bucketCnt = uint64(bucketLimit)
+	// }
+	if bucketCnt < 128 {
+		bucketCnt = 128
 	}
 	res := &simpleHashTable{
 		buckets:    make([]int64, bucketCnt),
