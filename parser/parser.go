@@ -10997,6 +10997,7 @@ type yyLexer interface {
 	Lex(lval *yySymType) int
 	Errorf(format string, a ...interface{}) error
 	AppendError(err error)
+	AppendWarn(err error)
 	Errors() (warns []error, errs []error)
 }
 
