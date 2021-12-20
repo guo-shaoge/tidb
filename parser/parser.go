@@ -14989,7 +14989,7 @@ yynewstate:
 				yylex.AppendError(ast.ErrUnknownCharacterSet.GenWithStack("Unsupported character introducer: '%-.64s'", yyS[yypt-1].ident))
 				return 1
 			}
-			expr := ast.NewValueExpr(yyS[yypt-0].ident, parser.charset, parser.collation)
+			expr := ast.NewValueExpr(yyS[yypt-0].ident, yyS[yypt-1].ident, co)
 			tp := expr.GetType()
 			tp.Charset = yyS[yypt-1].ident
 			tp.Collate = co
@@ -15013,7 +15013,7 @@ yynewstate:
 				yylex.AppendError(ast.ErrUnknownCharacterSet.GenWithStack("Unsupported character introducer: '%-.64s'", yyS[yypt-1].ident))
 				return 1
 			}
-			expr := ast.NewValueExpr(yyS[yypt-0].item, parser.charset, parser.collation)
+			expr := ast.NewValueExpr(yyS[yypt-0].item, yyS[yypt-1].ident, co)
 			tp := expr.GetType()
 			tp.Charset = yyS[yypt-1].ident
 			tp.Collate = co
@@ -15029,7 +15029,7 @@ yynewstate:
 				yylex.AppendError(ast.ErrUnknownCharacterSet.GenWithStack("Unsupported character introducer: '%-.64s'", yyS[yypt-1].ident))
 				return 1
 			}
-			expr := ast.NewValueExpr(yyS[yypt-0].item, parser.charset, parser.collation)
+			expr := ast.NewValueExpr(yyS[yypt-0].item, yyS[yypt-1].ident, co)
 			tp := expr.GetType()
 			tp.Charset = yyS[yypt-1].ident
 			tp.Collate = co
