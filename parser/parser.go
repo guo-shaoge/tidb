@@ -19582,7 +19582,9 @@ yynewstate:
 	case 2139:
 		{
 			x := types.NewFieldType(mysql.TypeEnum)
-			x.Elems = yyS[yypt-2].item.([]string)
+			elems := yyS[yypt-2].item.([]*ast.TextString)
+			opt := yyS[yypt-0].item.(*ast.OptBinary)
+			x.Elems = ast.TransformTextStrings(elems, opt.Charset)
 			fieldLen := -1 // enum_flen = max(ele_flen)
 			for i := range x.Elems {
 				x.Elems[i] = strings.TrimRight(x.Elems[i], " ")
@@ -19591,7 +19593,6 @@ yynewstate:
 				}
 			}
 			x.Flen = fieldLen
-			opt := yyS[yypt-0].item.(*ast.OptBinary)
 			x.Charset = opt.Charset
 			if opt.IsBinary {
 				x.Flag |= mysql.BinaryFlag
@@ -19601,14 +19602,15 @@ yynewstate:
 	case 2140:
 		{
 			x := types.NewFieldType(mysql.TypeSet)
-			x.Elems = yyS[yypt-2].item.([]string)
+			elems := yyS[yypt-2].item.([]*ast.TextString)
+			opt := yyS[yypt-0].item.(*ast.OptBinary)
+			x.Elems = ast.TransformTextStrings(elems, opt.Charset)
 			fieldLen := len(x.Elems) - 1 // set_flen = sum(ele_flen) + number_of_ele - 1
 			for i := range x.Elems {
 				x.Elems[i] = strings.TrimRight(x.Elems[i], " ")
 				fieldLen += len(x.Elems[i])
 			}
 			x.Flen = fieldLen
-			opt := yyS[yypt-0].item.(*ast.OptBinary)
 			x.Charset = opt.Charset
 			if opt.IsBinary {
 				x.Flag |= mysql.BinaryFlag
@@ -19852,21 +19854,25 @@ yynewstate:
 		{
 			parser.yyVAL.item = append(yyS[yypt-2].item.([]string), yyS[yypt-0].ident)
 		}
+	case 2207:
+		{
+			parser.yyVAL.item = &ast.TextString{Value: yyS[yypt-0].ident}
+		}
 	case 2208:
 		{
-			parser.yyVAL.ident = yyS[yypt-0].item.(ast.BinaryLiteral).ToString()
+			parser.yyVAL.item = &ast.TextString{Value: yyS[yypt-0].item.(ast.BinaryLiteral).ToString(), IsBinaryLiteral: true}
 		}
 	case 2209:
 		{
-			parser.yyVAL.ident = yyS[yypt-0].item.(ast.BinaryLiteral).ToString()
+			parser.yyVAL.item = &ast.TextString{Value: yyS[yypt-0].item.(ast.BinaryLiteral).ToString(), IsBinaryLiteral: true}
 		}
 	case 2210:
 		{
-			parser.yyVAL.item = []string{yyS[yypt-0].ident}
+			parser.yyVAL.item = []*ast.TextString{yyS[yypt-0].item.(*ast.TextString)}
 		}
 	case 2211:
 		{
-			parser.yyVAL.item = append(yyS[yypt-2].item.([]string), yyS[yypt-0].ident)
+			parser.yyVAL.item = append(yyS[yypt-2].item.([]*ast.TextString), yyS[yypt-0].item.(*ast.TextString))
 		}
 	case 2218:
 		{
