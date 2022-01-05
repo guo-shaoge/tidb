@@ -13122,7 +13122,7 @@ yynewstate:
 			stmt.OnDuplicate = yyS[yypt-3].item.(ast.OnDuplicateKeyHandlingType)
 			stmt.Select = yyS[yypt-1].item.(*ast.CreateTableStmt).Select
 			if (yyS[yypt-0].item != nil && stmt.TemporaryKeyword != ast.TemporaryGlobal) || (stmt.TemporaryKeyword == ast.TemporaryGlobal && yyS[yypt-0].item == nil) {
-				yylex.AppendError(yylex.Errorf("GLOBAL TEMPORARY and ON COMMIT DELETE|PRESERVE ROWS must appear together"))
+				yylex.AppendError(yylex.Errorf("GLOBAL TEMPORARY and ON COMMIT DELETE ROWS must appear together"))
 			} else {
 				if stmt.TemporaryKeyword == ast.TemporaryGlobal {
 					stmt.OnCommitDelete = yyS[yypt-0].item.(bool)
@@ -13139,7 +13139,7 @@ yynewstate:
 				TemporaryKeyword: yyS[yypt-5].item.(ast.TemporaryKeyword),
 			}
 			if (yyS[yypt-0].item != nil && tmp.TemporaryKeyword != ast.TemporaryGlobal) || (tmp.TemporaryKeyword == ast.TemporaryGlobal && yyS[yypt-0].item == nil) {
-				yylex.AppendError(yylex.Errorf("GLOBAL TEMPORARY and ON COMMIT DELETE|PRESERVE ROWS must appear together"))
+				yylex.AppendError(yylex.Errorf("GLOBAL TEMPORARY and ON COMMIT DELETE ROWS must appear together"))
 			} else {
 				if tmp.TemporaryKeyword == ast.TemporaryGlobal {
 					tmp.OnCommitDelete = yyS[yypt-0].item.(bool)
