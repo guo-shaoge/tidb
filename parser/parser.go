@@ -12614,7 +12614,7 @@ yynewstate:
 			startOffset := parser.startOffset(&yyS[yypt-2])
 			endOffset := parser.endOffset(&yyS[yypt-1])
 			expr := yyS[yypt-2].expr
-			expr.SetText(parser.src[startOffset:endOffset])
+			expr.SetText(parser.lexer.client, parser.src[startOffset:endOffset])
 
 			parser.yyVAL.item = &ast.ColumnOption{
 				Tp:     ast.ColumnOptionGenerated,
@@ -13517,7 +13517,7 @@ yynewstate:
 		{
 			startOffset := parser.startOffset(&yyS[yypt-1])
 			selStmt := yyS[yypt-1].statement.(ast.StmtNode)
-			selStmt.SetText(strings.TrimSpace(parser.src[startOffset:]))
+			selStmt.SetText(parser.lexer.client, strings.TrimSpace(parser.src[startOffset:]))
 			x := &ast.CreateViewStmt{
 				OrReplace: yyS[yypt-9].item.(bool),
 				ViewName:  yyS[yypt-4].item.(*ast.TableName),
@@ -13532,7 +13532,7 @@ yynewstate:
 			if yyS[yypt-0].item != nil {
 				x.CheckOption = yyS[yypt-0].item.(model.ViewCheckOption)
 				endOffset := parser.startOffset(&yyS[yypt])
-				selStmt.SetText(strings.TrimSpace(parser.src[startOffset:endOffset]))
+				selStmt.SetText(parser.lexer.client, strings.TrimSpace(parser.src[startOffset:endOffset]))
 			} else {
 				x.CheckOption = model.CheckOptionCascaded
 			}
@@ -13790,7 +13790,7 @@ yynewstate:
 				TracePlan: false,
 			}
 			startOffset := parser.startOffset(&yyS[yypt])
-			yyS[yypt-0].statement.SetText(string(parser.src[startOffset:]))
+			yyS[yypt-0].statement.SetText(parser.lexer.client, string(parser.src[startOffset:]))
 		}
 	case 465:
 		{
@@ -13800,7 +13800,7 @@ yynewstate:
 				TracePlan: false,
 			}
 			startOffset := parser.startOffset(&yyS[yypt])
-			yyS[yypt-0].statement.SetText(string(parser.src[startOffset:]))
+			yyS[yypt-0].statement.SetText(parser.lexer.client, string(parser.src[startOffset:]))
 		}
 	case 466:
 		{
@@ -13809,7 +13809,7 @@ yynewstate:
 				TracePlan: true,
 			}
 			startOffset := parser.startOffset(&yyS[yypt])
-			yyS[yypt-0].statement.SetText(string(parser.src[startOffset:]))
+			yyS[yypt-0].statement.SetText(parser.lexer.client, string(parser.src[startOffset:]))
 		}
 	case 467:
 		{
@@ -13819,7 +13819,7 @@ yynewstate:
 				TracePlanTarget: yyS[yypt-1].ident,
 			}
 			startOffset := parser.startOffset(&yyS[yypt])
-			yyS[yypt-0].statement.SetText(string(parser.src[startOffset:]))
+			yyS[yypt-0].statement.SetText(parser.lexer.client, string(parser.src[startOffset:]))
 		}
 	case 471:
 		{
@@ -14599,7 +14599,7 @@ yynewstate:
 			last := fl[len(fl)-1]
 			if last.Expr != nil && last.AsName.O == "" {
 				lastEnd := parser.endOffset(&yyS[yypt-1])
-				last.SetText(parser.src[last.Offset:lastEnd])
+				last.SetText(parser.lexer.client, parser.src[last.Offset:lastEnd])
 			}
 			newField := yyS[yypt-0].item.(*ast.SelectField)
 			newField.Offset = parser.startOffset(&yyS[yypt])
@@ -15261,7 +15261,7 @@ yynewstate:
 			startOffset := parser.startOffset(&yyS[yypt-1])
 			endOffset := parser.endOffset(&yyS[yypt])
 			expr := yyS[yypt-1].expr
-			expr.SetText(parser.src[startOffset:endOffset])
+			expr.SetText(parser.lexer.client, parser.src[startOffset:endOffset])
 			parser.yyVAL.expr = &ast.ParenthesesExpr{Expr: expr}
 		}
 	case 1233:
@@ -16409,7 +16409,7 @@ yynewstate:
 			lastField := st.Fields.Fields[len(st.Fields.Fields)-1]
 			if lastField.Expr != nil && lastField.AsName.O == "" {
 				lastEnd := yyS[yypt-1].offset - 1
-				lastField.SetText(parser.src[lastField.Offset:lastEnd])
+				lastField.SetText(parser.lexer.client, parser.src[lastField.Offset:lastEnd])
 			}
 			if yyS[yypt-0].item != nil {
 				st.Where = yyS[yypt-0].item.(ast.ExprNode)
@@ -16422,7 +16422,7 @@ yynewstate:
 			lastField := st.Fields.Fields[len(st.Fields.Fields)-1]
 			if lastField.Expr != nil && lastField.AsName.O == "" {
 				lastEnd := parser.endOffset(&yyS[yypt-5])
-				lastField.SetText(parser.src[lastField.Offset:lastEnd])
+				lastField.SetText(parser.lexer.client, parser.src[lastField.Offset:lastEnd])
 			}
 			if yyS[yypt-3].item != nil {
 				st.Where = yyS[yypt-3].item.(ast.ExprNode)
@@ -16530,7 +16530,7 @@ yynewstate:
 						lastEnd--
 					}
 				}
-				lastField.SetText(src[lastField.Offset:lastEnd])
+				lastField.SetText(parser.lexer.client, src[lastField.Offset:lastEnd])
 			}
 			if yyS[yypt-5].item != nil {
 				st.Where = yyS[yypt-5].item.(ast.ExprNode)
@@ -17336,14 +17336,14 @@ yynewstate:
 			parser.setLastSelectFieldText(rs, endOffset)
 			src := parser.src
 			// See the implementation of yyParse function
-			rs.SetText(src[yyS[yypt-1].offset:yyS[yypt].offset])
+			rs.SetText(parser.lexer.client, src[yyS[yypt-1].offset:yyS[yypt].offset])
 			parser.yyVAL.expr = &ast.SubqueryExpr{Query: rs}
 		}
 	case 1645:
 		{
 			rs := yyS[yypt-1].statement.(*ast.SetOprStmt)
 			src := parser.src
-			rs.SetText(src[yyS[yypt-1].offset:yyS[yypt].offset])
+			rs.SetText(parser.lexer.client, src[yyS[yypt-1].offset:yyS[yypt].offset])
 			parser.yyVAL.expr = &ast.SubqueryExpr{Query: rs}
 		}
 	case 1646:
@@ -17353,7 +17353,7 @@ yynewstate:
 			parser.setLastSelectFieldText(rs, endOffset)
 			src := parser.src
 			// See the implementation of yyParse function
-			rs.SetText(src[yyS[yypt-1].offset:yyS[yypt].offset])
+			rs.SetText(parser.lexer.client, src[yyS[yypt-1].offset:yyS[yypt].offset])
 			parser.yyVAL.expr = &ast.SubqueryExpr{Query: rs}
 		}
 	case 1647:
@@ -17371,11 +17371,11 @@ yynewstate:
 				endOffset := parser.endOffset(&yyS[yypt])
 				parser.setLastSelectFieldText(rs, endOffset)
 				src := parser.src
-				rs.SetText(src[yyS[yypt-1].offset:yyS[yypt].offset])
+				rs.SetText(parser.lexer.client, src[yyS[yypt-1].offset:yyS[yypt].offset])
 				parser.yyVAL.expr = &ast.SubqueryExpr{Query: rs}
 			case *ast.SetOprStmt:
 				src := parser.src
-				rs.SetText(src[yyS[yypt-1].offset:yyS[yypt].offset])
+				rs.SetText(parser.lexer.client, src[yyS[yypt-1].offset:yyS[yypt].offset])
 				parser.yyVAL.expr = &ast.SubqueryExpr{Query: rs}
 			}
 		}
@@ -18986,7 +18986,7 @@ yynewstate:
 			if yyS[yypt-0].statement != nil {
 				s := yyS[yypt-0].statement
 				if lexer, ok := yylex.(stmtTexter); ok {
-					s.SetText(lexer.stmtText())
+					s.SetText(parser.lexer.client, lexer.stmtText())
 				}
 				parser.result = append(parser.result, s)
 			}
@@ -18996,7 +18996,7 @@ yynewstate:
 			if yyS[yypt-0].statement != nil {
 				s := yyS[yypt-0].statement
 				if lexer, ok := yylex.(stmtTexter); ok {
-					s.SetText(lexer.stmtText())
+					s.SetText(parser.lexer.client, lexer.stmtText())
 				}
 				parser.result = append(parser.result, s)
 			}
@@ -20282,11 +20282,11 @@ yynewstate:
 			startOffset := parser.startOffset(&yyS[yypt-2])
 			endOffset := parser.startOffset(&yyS[yypt-1])
 			originStmt := yyS[yypt-2].statement
-			originStmt.SetText(strings.TrimSpace(parser.src[startOffset:endOffset]))
+			originStmt.SetText(parser.lexer.client, strings.TrimSpace(parser.src[startOffset:endOffset]))
 
 			startOffset = parser.startOffset(&yyS[yypt])
 			hintedStmt := yyS[yypt-0].statement
-			hintedStmt.SetText(strings.TrimSpace(parser.src[startOffset:]))
+			hintedStmt.SetText(parser.lexer.client, strings.TrimSpace(parser.src[startOffset:]))
 
 			x := &ast.CreateBindingStmt{
 				OriginNode:  originStmt,
@@ -20300,7 +20300,7 @@ yynewstate:
 		{
 			startOffset := parser.startOffset(&yyS[yypt])
 			originStmt := yyS[yypt-0].statement
-			originStmt.SetText(strings.TrimSpace(parser.src[startOffset:]))
+			originStmt.SetText(parser.lexer.client, strings.TrimSpace(parser.src[startOffset:]))
 
 			x := &ast.DropBindingStmt{
 				OriginNode:  originStmt,
@@ -20314,11 +20314,11 @@ yynewstate:
 			startOffset := parser.startOffset(&yyS[yypt-2])
 			endOffset := parser.startOffset(&yyS[yypt-1])
 			originStmt := yyS[yypt-2].statement
-			originStmt.SetText(strings.TrimSpace(parser.src[startOffset:endOffset]))
+			originStmt.SetText(parser.lexer.client, strings.TrimSpace(parser.src[startOffset:endOffset]))
 
 			startOffset = parser.startOffset(&yyS[yypt])
 			hintedStmt := yyS[yypt-0].statement
-			hintedStmt.SetText(strings.TrimSpace(parser.src[startOffset:]))
+			hintedStmt.SetText(parser.lexer.client, strings.TrimSpace(parser.src[startOffset:]))
 
 			x := &ast.DropBindingStmt{
 				OriginNode:  originStmt,
@@ -21213,7 +21213,7 @@ yynewstate:
 				Limit:   nil,
 			}
 			startOffset := parser.startOffset(&yyS[yypt])
-			x.Stmt.SetText(strings.TrimSpace(parser.src[startOffset:]))
+			x.Stmt.SetText(parser.lexer.client, strings.TrimSpace(parser.src[startOffset:]))
 
 			parser.yyVAL.statement = x
 		}
@@ -21229,7 +21229,7 @@ yynewstate:
 				Limit:   nil,
 			}
 			startOffset := parser.startOffset(&yyS[yypt])
-			x.Stmt.SetText(strings.TrimSpace(parser.src[startOffset:]))
+			x.Stmt.SetText(parser.lexer.client, strings.TrimSpace(parser.src[startOffset:]))
 
 			parser.yyVAL.statement = x
 		}
