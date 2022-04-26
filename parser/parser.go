@@ -12502,7 +12502,7 @@ yynewstate:
 			tp := types.NewFieldType(mysql.TypeLonglong)
 			options := []*ast.ColumnOption{{Tp: ast.ColumnOptionNotNull}, {Tp: ast.ColumnOptionAutoIncrement}, {Tp: ast.ColumnOptionUniqKey}}
 			options = append(options, yyS[yypt-0].item.([]*ast.ColumnOption)...)
-			tp.Flag |= mysql.UnsignedFlag
+			tp.AddFlag(mysql.UnsignedFlag)
 			colDef := &ast.ColumnDef{Name: yyS[yypt-2].item.(*ast.ColumnName), Tp: tp, Options: options}
 			if !colDef.Validate() {
 				yylex.AppendError(yylex.Errorf("Invalid column definition"))
@@ -15118,10 +15118,10 @@ yynewstate:
 			}
 			expr := ast.NewValueExpr(yyS[yypt-0].ident, yyS[yypt-1].ident, co)
 			tp := expr.GetType()
-			tp.Charset = yyS[yypt-1].ident
-			tp.Collate = co
-			if tp.Collate == charset.CollationBin {
-				tp.Flag |= mysql.BinaryFlag
+			tp.SetCharset(yyS[yypt-1].ident)
+			tp.SetCollate(co)
+			if tp.GetCollate() == charset.CollationBin {
+				tp.AddFlag(mysql.BinaryFlag)
 			}
 			parser.yyVAL.expr = expr
 		}
@@ -15142,10 +15142,10 @@ yynewstate:
 			}
 			expr := ast.NewValueExpr(yyS[yypt-0].item, yyS[yypt-1].ident, co)
 			tp := expr.GetType()
-			tp.Charset = yyS[yypt-1].ident
-			tp.Collate = co
-			if tp.Collate == charset.CollationBin {
-				tp.Flag |= mysql.BinaryFlag
+			tp.SetCharset(yyS[yypt-1].ident)
+			tp.SetCollate(co)
+			if tp.GetCollate() == charset.CollationBin {
+				tp.AddFlag(mysql.BinaryFlag)
 			}
 			parser.yyVAL.expr = expr
 		}
@@ -15158,10 +15158,10 @@ yynewstate:
 			}
 			expr := ast.NewValueExpr(yyS[yypt-0].item, yyS[yypt-1].ident, co)
 			tp := expr.GetType()
-			tp.Charset = yyS[yypt-1].ident
-			tp.Collate = co
-			if tp.Collate == charset.CollationBin {
-				tp.Flag |= mysql.BinaryFlag
+			tp.SetCharset(yyS[yypt-1].ident)
+			tp.SetCollate(co)
+			if tp.GetCollate() == charset.CollationBin {
+				tp.AddFlag(mysql.BinaryFlag)
 			}
 			parser.yyVAL.expr = expr
 		}
@@ -15411,16 +15411,16 @@ yynewstate:
 			tp := yyS[yypt-1].expr.GetType()
 			switch yyS[yypt-2].ident {
 			case "d":
-				tp.Charset = ""
-				tp.Collate = ""
+				tp.SetCharset("")
+				tp.SetCollate("")
 				parser.yyVAL.expr = &ast.FuncCallExpr{FnName: model.NewCIStr(ast.DateLiteral), Args: []ast.ExprNode{yyS[yypt-1].expr}}
 			case "t":
-				tp.Charset = ""
-				tp.Collate = ""
+				tp.SetCharset("")
+				tp.SetCollate("")
 				parser.yyVAL.expr = &ast.FuncCallExpr{FnName: model.NewCIStr(ast.TimeLiteral), Args: []ast.ExprNode{yyS[yypt-1].expr}}
 			case "ts":
-				tp.Charset = ""
-				tp.Collate = ""
+				tp.SetCharset("")
+				tp.SetCollate("")
 				parser.yyVAL.expr = &ast.FuncCallExpr{FnName: model.NewCIStr(ast.TimestampLiteral), Args: []ast.ExprNode{yyS[yypt-1].expr}}
 			default:
 				parser.yyVAL.expr = yyS[yypt-1].expr
@@ -15429,13 +15429,13 @@ yynewstate:
 	case 1249:
 		{
 			// See https://dev.mysql.com/doc/refman/5.7/en/cast-functions.html#operator_binary
-			x := types.NewFieldType(mysql.TypeString)
-			x.Charset = charset.CharsetBin
-			x.Collate = charset.CharsetBin
-			x.Flag |= mysql.BinaryFlag
+			tp := types.NewFieldType(mysql.TypeString)
+			tp.SetCharset(charset.CharsetBin)
+			tp.SetCollate(charset.CharsetBin)
+			tp.AddFlag(mysql.BinaryFlag)
 			parser.yyVAL.expr = &ast.FuncCastExpr{
 				Expr:         yyS[yypt-0].expr,
-				Tp:           x,
+				Tp:           tp,
 				FunctionType: ast.CastBinaryOperator,
 			}
 		}
@@ -15443,12 +15443,12 @@ yynewstate:
 		{
 			/* See https://dev.mysql.com/doc/refman/5.7/en/cast-functions.html#function_cast */
 			tp := yyS[yypt-1].item.(*types.FieldType)
-			defaultFlen, defaultDecimal := mysql.GetDefaultFieldLengthAndDecimalForCast(tp.Tp)
-			if tp.Flen == types.UnspecifiedLength {
-				tp.Flen = defaultFlen
+			defaultFlen, defaultDecimal := mysql.GetDefaultFieldLengthAndDecimalForCast(tp.GetType())
+			if tp.GetFlen() == types.UnspecifiedLength {
+				tp.SetFlen(defaultFlen)
 			}
-			if tp.Decimal == types.UnspecifiedLength {
-				tp.Decimal = defaultDecimal
+			if tp.GetDecimal() == types.UnspecifiedLength {
+				tp.SetDecimal(defaultDecimal)
 			}
 			explicitCharset := parser.explicitCharset
 			parser.explicitCharset = false
@@ -15474,12 +15474,12 @@ yynewstate:
 		{
 			// See https://dev.mysql.com/doc/refman/5.7/en/cast-functions.html#function_convert
 			tp := yyS[yypt-1].item.(*types.FieldType)
-			defaultFlen, defaultDecimal := mysql.GetDefaultFieldLengthAndDecimalForCast(tp.Tp)
-			if tp.Flen == types.UnspecifiedLength {
-				tp.Flen = defaultFlen
+			defaultFlen, defaultDecimal := mysql.GetDefaultFieldLengthAndDecimalForCast(tp.GetType())
+			if tp.GetFlen() == types.UnspecifiedLength {
+				tp.SetFlen(defaultFlen)
 			}
-			if tp.Decimal == types.UnspecifiedLength {
-				tp.Decimal = defaultDecimal
+			if tp.GetDecimal() == types.UnspecifiedLength {
+				tp.SetDecimal(defaultDecimal)
 			}
 			explicitCharset := parser.explicitCharset
 			parser.explicitCharset = false
@@ -16211,153 +16211,161 @@ yynewstate:
 		}
 	case 1429:
 		{
-			x := types.NewFieldType(mysql.TypeVarString)
-			x.Flen = yyS[yypt-0].item.(int) // TODO: Flen should be the flen of expression
-			if x.Flen != types.UnspecifiedLength {
-				x.Tp = mysql.TypeString
+			tp := types.NewFieldType(mysql.TypeVarString)
+			tp.SetFlen(yyS[yypt-0].item.(int)) // TODO: Flen should be the flen of expression
+			if tp.GetFlen() != types.UnspecifiedLength {
+				tp.SetType(mysql.TypeString)
 			}
-			x.Charset = charset.CharsetBin
-			x.Collate = charset.CollationBin
-			x.Flag |= mysql.BinaryFlag
-			parser.yyVAL.item = x
+			tp.SetCharset(charset.CharsetBin)
+			tp.SetCollate(charset.CollationBin)
+			tp.AddFlag(mysql.BinaryFlag)
+			parser.yyVAL.item = tp
 		}
 	case 1430:
 		{
-			x := types.NewFieldType(mysql.TypeVarString)
-			x.Flen = yyS[yypt-1].item.(int) // TODO: Flen should be the flen of expression
-			x.Charset = yyS[yypt-0].item.(*ast.OptBinary).Charset
+			tp := types.NewFieldType(mysql.TypeVarString)
+			tp.SetFlen(yyS[yypt-1].item.(int)) // TODO: Flen should be the flen of expression
+			tp.SetCharset(yyS[yypt-0].item.(*ast.OptBinary).Charset)
 			if yyS[yypt-0].item.(*ast.OptBinary).IsBinary {
-				x.Flag |= mysql.BinaryFlag
-				x.Charset = charset.CharsetBin
-				x.Collate = charset.CollationBin
-			} else if x.Charset != "" {
-				co, err := charset.GetDefaultCollation(x.Charset)
+				tp.AddFlag(mysql.BinaryFlag)
+				tp.SetCharset(charset.CharsetBin)
+				tp.SetCollate(charset.CollationBin)
+			} else if tp.GetCharset() != "" {
+				co, err := charset.GetDefaultCollation(tp.GetCharset())
 				if err != nil {
-					yylex.AppendError(yylex.Errorf("Get collation error for charset: %s", x.Charset))
+					yylex.AppendError(yylex.Errorf("Get collation error for charset: %s", tp.GetCharset()))
 					return 1
 				}
-				x.Collate = co
+				tp.SetCollate(co)
 				parser.explicitCharset = true
 			} else {
-				x.Charset = parser.charset
-				x.Collate = parser.collation
+				tp.SetCharset(parser.charset)
+				tp.SetCollate(parser.collation)
 			}
-			parser.yyVAL.item = x
+			parser.yyVAL.item = tp
 		}
 	case 1431:
 		{
-			x := types.NewFieldType(mysql.TypeDate)
-			x.Charset = charset.CharsetBin
-			x.Collate = charset.CollationBin
-			x.Flag |= mysql.BinaryFlag
-			parser.yyVAL.item = x
+			tp := types.NewFieldType(mysql.TypeDate)
+			tp.SetCharset(charset.CharsetBin)
+			tp.SetCollate(charset.CollationBin)
+			tp.AddFlag(mysql.BinaryFlag)
+			parser.yyVAL.item = tp
 		}
 	case 1432:
 		{
-			x := types.NewFieldType(mysql.TypeYear)
-			x.Charset = charset.CharsetBin
-			x.Collate = charset.CollationBin
-			x.Flag |= mysql.BinaryFlag
-			parser.yyVAL.item = x
+			tp := types.NewFieldType(mysql.TypeYear)
+			tp.SetCharset(charset.CharsetBin)
+			tp.SetCollate(charset.CollationBin)
+			tp.AddFlag(mysql.BinaryFlag)
+			parser.yyVAL.item = tp
 		}
 	case 1433:
 		{
-			x := types.NewFieldType(mysql.TypeDatetime)
-			x.Flen, _ = mysql.GetDefaultFieldLengthAndDecimalForCast(mysql.TypeDatetime)
-			x.Decimal = yyS[yypt-0].item.(int)
-			if x.Decimal > 0 {
-				x.Flen = x.Flen + 1 + x.Decimal
+			tp := types.NewFieldType(mysql.TypeDatetime)
+			flen, _ := mysql.GetDefaultFieldLengthAndDecimalForCast(mysql.TypeDatetime)
+			tp.SetFlen(flen)
+			tp.SetDecimal(yyS[yypt-0].item.(int))
+			if tp.GetDecimal() > 0 {
+				tp.SetFlen(tp.GetFlen() + 1 + tp.GetDecimal())
 			}
-			x.Charset = charset.CharsetBin
-			x.Collate = charset.CollationBin
-			x.Flag |= mysql.BinaryFlag
-			parser.yyVAL.item = x
+			tp.SetCharset(charset.CharsetBin)
+			tp.SetCollate(charset.CollationBin)
+			tp.AddFlag(mysql.BinaryFlag)
+			parser.yyVAL.item = tp
 		}
 	case 1434:
 		{
 			fopt := yyS[yypt-0].item.(*ast.FloatOpt)
-			x := types.NewFieldType(mysql.TypeNewDecimal)
-			x.Flen = fopt.Flen
-			x.Decimal = fopt.Decimal
-			x.Charset = charset.CharsetBin
-			x.Collate = charset.CollationBin
-			x.Flag |= mysql.BinaryFlag
-			parser.yyVAL.item = x
+			tp := types.NewFieldType(mysql.TypeNewDecimal)
+			tp.SetFlen(fopt.Flen)
+			tp.SetDecimal(fopt.Decimal)
+			tp.SetCharset(charset.CharsetBin)
+			tp.SetCollate(charset.CollationBin)
+			tp.AddFlag(mysql.BinaryFlag)
+			parser.yyVAL.item = tp
 		}
 	case 1435:
 		{
-			x := types.NewFieldType(mysql.TypeDuration)
-			x.Flen, _ = mysql.GetDefaultFieldLengthAndDecimalForCast(mysql.TypeDuration)
-			x.Decimal = yyS[yypt-0].item.(int)
-			if x.Decimal > 0 {
-				x.Flen = x.Flen + 1 + x.Decimal
+			tp := types.NewFieldType(mysql.TypeDuration)
+			flen, _ := mysql.GetDefaultFieldLengthAndDecimalForCast(mysql.TypeDuration)
+			tp.SetFlen(flen)
+			tp.SetDecimal(yyS[yypt-0].item.(int))
+			if tp.GetDecimal() > 0 {
+				tp.SetFlen(tp.GetFlen() + 1 + tp.GetDecimal())
 			}
-			x.Charset = charset.CharsetBin
-			x.Collate = charset.CollationBin
-			x.Flag |= mysql.BinaryFlag
-			parser.yyVAL.item = x
+			tp.SetCharset(charset.CharsetBin)
+			tp.SetCollate(charset.CollationBin)
+			tp.AddFlag(mysql.BinaryFlag)
+			parser.yyVAL.item = tp
 		}
 	case 1436:
 		{
-			x := types.NewFieldType(mysql.TypeLonglong)
-			x.Charset = charset.CharsetBin
-			x.Collate = charset.CollationBin
-			x.Flag |= mysql.BinaryFlag
-			parser.yyVAL.item = x
+			tp := types.NewFieldType(mysql.TypeLonglong)
+			tp.SetCharset(charset.CharsetBin)
+			tp.SetCollate(charset.CollationBin)
+			tp.AddFlag(mysql.BinaryFlag)
+			parser.yyVAL.item = tp
 		}
 	case 1437:
 		{
-			x := types.NewFieldType(mysql.TypeLonglong)
-			x.Flag |= mysql.UnsignedFlag | mysql.BinaryFlag
-			x.Charset = charset.CharsetBin
-			x.Collate = charset.CollationBin
-			parser.yyVAL.item = x
+			tp := types.NewFieldType(mysql.TypeLonglong)
+			tp.AddFlag(mysql.UnsignedFlag | mysql.BinaryFlag)
+			tp.SetCharset(charset.CharsetBin)
+			tp.SetCollate(charset.CollationBin)
+			parser.yyVAL.item = tp
 		}
 	case 1438:
 		{
-			x := types.NewFieldType(mysql.TypeJSON)
-			x.Flag |= mysql.BinaryFlag | (mysql.ParseToJSONFlag)
-			x.Charset = mysql.DefaultCharset
-			x.Collate = mysql.DefaultCollationName
-			parser.yyVAL.item = x
+			tp := types.NewFieldType(mysql.TypeJSON)
+			tp.AddFlag(mysql.BinaryFlag | mysql.ParseToJSONFlag)
+			tp.SetCharset(mysql.DefaultCharset)
+			tp.SetCollate(mysql.DefaultCollationName)
+			parser.yyVAL.item = tp
 		}
 	case 1439:
 		{
-			x := types.NewFieldType(mysql.TypeDouble)
-			x.Flen, x.Decimal = mysql.GetDefaultFieldLengthAndDecimalForCast(mysql.TypeDouble)
-			x.Flag |= mysql.BinaryFlag
-			x.Charset = charset.CharsetBin
-			x.Collate = charset.CollationBin
-			parser.yyVAL.item = x
+			tp := types.NewFieldType(mysql.TypeDouble)
+			flen, decimal := mysql.GetDefaultFieldLengthAndDecimalForCast(mysql.TypeDouble)
+			tp.SetFlen(flen)
+			tp.SetDecimal(decimal)
+			tp.AddFlag(mysql.BinaryFlag)
+			tp.SetCharset(charset.CharsetBin)
+			tp.SetCollate(charset.CollationBin)
+			parser.yyVAL.item = tp
 		}
 	case 1440:
 		{
-			x := types.NewFieldType(mysql.TypeFloat)
+			tp := types.NewFieldType(mysql.TypeFloat)
 			fopt := yyS[yypt-0].item.(*ast.FloatOpt)
 			if fopt.Flen >= 54 {
 				yylex.AppendError(ErrTooBigPrecision.GenWithStackByArgs(fopt.Flen, "CAST", 53))
 			} else if fopt.Flen >= 25 {
-				x = types.NewFieldType(mysql.TypeDouble)
+				tp = types.NewFieldType(mysql.TypeDouble)
 			}
-			x.Flen, x.Decimal = mysql.GetDefaultFieldLengthAndDecimalForCast(x.Tp)
-			x.Flag |= mysql.BinaryFlag
-			x.Charset = charset.CharsetBin
-			x.Collate = charset.CollationBin
-			parser.yyVAL.item = x
+			flen, decimal := mysql.GetDefaultFieldLengthAndDecimalForCast(tp.GetType())
+			tp.SetFlen(flen)
+			tp.SetDecimal(decimal)
+			tp.AddFlag(mysql.BinaryFlag)
+			tp.SetCharset(charset.CharsetBin)
+			tp.SetCollate(charset.CollationBin)
+			parser.yyVAL.item = tp
 		}
 	case 1441:
 		{
-			var x *types.FieldType
+			var tp *types.FieldType
 			if parser.lexer.GetSQLMode().HasRealAsFloatMode() {
-				x = types.NewFieldType(mysql.TypeFloat)
+				tp = types.NewFieldType(mysql.TypeFloat)
 			} else {
-				x = types.NewFieldType(mysql.TypeDouble)
+				tp = types.NewFieldType(mysql.TypeDouble)
 			}
-			x.Flen, x.Decimal = mysql.GetDefaultFieldLengthAndDecimalForCast(x.Tp)
-			x.Flag |= mysql.BinaryFlag
-			x.Charset = charset.CharsetBin
-			x.Collate = charset.CollationBin
-			parser.yyVAL.item = x
+			flen, decimal := mysql.GetDefaultFieldLengthAndDecimalForCast(tp.GetType())
+			tp.SetFlen(flen)
+			tp.SetDecimal(decimal)
+			tp.AddFlag(mysql.BinaryFlag)
+			tp.SetCharset(charset.CharsetBin)
+			tp.SetCollate(charset.CollationBin)
+			parser.yyVAL.item = tp
 		}
 	case 1442:
 		{
@@ -19441,90 +19449,90 @@ yynewstate:
 	case 2115:
 		{
 			// TODO: check flen 0
-			x := types.NewFieldType(yyS[yypt-2].item.(byte))
-			x.Flen = yyS[yypt-1].item.(int)
+			tp := types.NewFieldType(yyS[yypt-2].item.(byte))
+			tp.SetFlen(yyS[yypt-1].item.(int))
 			if yyS[yypt-1].item.(int) != types.UnspecifiedLength && types.TiDBStrictIntegerDisplayWidth {
 				yylex.AppendError(ErrWarnDeprecatedIntegerDisplayWidth)
 				parser.lastErrorAsWarn()
 			}
 			for _, o := range yyS[yypt-0].item.([]*ast.TypeOpt) {
 				if o.IsUnsigned {
-					x.Flag |= mysql.UnsignedFlag
+					tp.AddFlag(mysql.UnsignedFlag)
 				}
 				if o.IsZerofill {
-					x.Flag |= mysql.ZerofillFlag
+					tp.AddFlag(mysql.ZerofillFlag)
 				}
 			}
-			parser.yyVAL.item = x
+			parser.yyVAL.item = tp
 		}
 	case 2116:
 		{
 			// TODO: check flen 0
-			x := types.NewFieldType(yyS[yypt-1].item.(byte))
-			x.Flen = 1
+			tp := types.NewFieldType(yyS[yypt-1].item.(byte))
+			tp.SetFlen(1)
 			for _, o := range yyS[yypt-0].item.([]*ast.TypeOpt) {
 				if o.IsUnsigned {
-					x.Flag |= mysql.UnsignedFlag
+					tp.AddFlag(mysql.UnsignedFlag)
 				}
 				if o.IsZerofill {
-					x.Flag |= mysql.ZerofillFlag
+					tp.AddFlag(mysql.ZerofillFlag)
 				}
 			}
-			parser.yyVAL.item = x
+			parser.yyVAL.item = tp
 		}
 	case 2117:
 		{
 			fopt := yyS[yypt-1].item.(*ast.FloatOpt)
-			x := types.NewFieldType(yyS[yypt-2].item.(byte))
-			x.Flen = fopt.Flen
-			x.Decimal = fopt.Decimal
+			tp := types.NewFieldType(yyS[yypt-2].item.(byte))
+			tp.SetFlen(fopt.Flen)
+			tp.SetDecimal(fopt.Decimal)
 			for _, o := range yyS[yypt-0].item.([]*ast.TypeOpt) {
 				if o.IsUnsigned {
-					x.Flag |= mysql.UnsignedFlag
+					tp.AddFlag(mysql.UnsignedFlag)
 				}
 				if o.IsZerofill {
-					x.Flag |= mysql.ZerofillFlag
+					tp.AddFlag(mysql.ZerofillFlag)
 				}
 			}
-			parser.yyVAL.item = x
+			parser.yyVAL.item = tp
 		}
 	case 2118:
 		{
 			fopt := yyS[yypt-1].item.(*ast.FloatOpt)
-			x := types.NewFieldType(yyS[yypt-2].item.(byte))
+			tp := types.NewFieldType(yyS[yypt-2].item.(byte))
 			// check for a double(10) for syntax error
-			if x.Tp == mysql.TypeDouble && parser.strictDoubleFieldType {
+			if tp.GetType() == mysql.TypeDouble && parser.strictDoubleFieldType {
 				if fopt.Flen != types.UnspecifiedLength && fopt.Decimal == types.UnspecifiedLength {
 					yylex.AppendError(ErrSyntax)
 					return 1
 				}
 			}
-			x.Flen = fopt.Flen
-			if x.Tp == mysql.TypeFloat && fopt.Decimal == types.UnspecifiedLength && x.Flen <= mysql.MaxDoublePrecisionLength {
-				if x.Flen > mysql.MaxFloatPrecisionLength {
-					x.Tp = mysql.TypeDouble
+			tp.SetFlen(fopt.Flen)
+			if tp.GetType() == mysql.TypeFloat && fopt.Decimal == types.UnspecifiedLength && tp.GetFlen() <= mysql.MaxDoublePrecisionLength {
+				if tp.GetFlen() > mysql.MaxFloatPrecisionLength {
+					tp.SetType(mysql.TypeDouble)
 				}
-				x.Flen = types.UnspecifiedLength
+				tp.SetFlen(types.UnspecifiedLength)
 			}
-			x.Decimal = fopt.Decimal
+			tp.SetDecimal(fopt.Decimal)
 			for _, o := range yyS[yypt-0].item.([]*ast.TypeOpt) {
 				if o.IsUnsigned {
-					x.Flag |= mysql.UnsignedFlag
+					tp.AddFlag(mysql.UnsignedFlag)
 				}
 				if o.IsZerofill {
-					x.Flag |= mysql.ZerofillFlag
+					tp.AddFlag(mysql.ZerofillFlag)
 				}
 			}
-			parser.yyVAL.item = x
+			parser.yyVAL.item = tp
 		}
 	case 2119:
 		{
-			x := types.NewFieldType(yyS[yypt-1].item.(byte))
-			x.Flen = yyS[yypt-0].item.(int)
-			if x.Flen == types.UnspecifiedLength {
-				x.Flen = 1
+			tp := types.NewFieldType(yyS[yypt-1].item.(byte))
+			tp.SetFlen(yyS[yypt-0].item.(int))
+			if tp.GetFlen() == types.UnspecifiedLength {
+				tp.SetFlen(1)
 			}
-			parser.yyVAL.item = x
+			parser.yyVAL.item = tp
 		}
 	case 2120:
 		{
@@ -19616,207 +19624,207 @@ yynewstate:
 		}
 	case 2144:
 		{
-			x := types.NewFieldType(mysql.TypeString)
-			x.Flen = yyS[yypt-1].item.(int)
-			x.Charset = yyS[yypt-0].item.(*ast.OptBinary).Charset
+			tp := types.NewFieldType(mysql.TypeString)
+			tp.SetFlen(yyS[yypt-1].item.(int))
+			tp.SetCharset(yyS[yypt-0].item.(*ast.OptBinary).Charset)
 			if yyS[yypt-0].item.(*ast.OptBinary).IsBinary {
-				x.Flag |= mysql.BinaryFlag
+				tp.AddFlag(mysql.BinaryFlag)
 			}
-			parser.yyVAL.item = x
+			parser.yyVAL.item = tp
 		}
 	case 2145:
 		{
-			x := types.NewFieldType(mysql.TypeString)
-			x.Charset = yyS[yypt-0].item.(*ast.OptBinary).Charset
+			tp := types.NewFieldType(mysql.TypeString)
+			tp.SetCharset(yyS[yypt-0].item.(*ast.OptBinary).Charset)
 			if yyS[yypt-0].item.(*ast.OptBinary).IsBinary {
-				x.Flag |= mysql.BinaryFlag
+				tp.AddFlag(mysql.BinaryFlag)
 			}
-			parser.yyVAL.item = x
+			parser.yyVAL.item = tp
 		}
 	case 2146:
 		{
-			x := types.NewFieldType(mysql.TypeString)
-			x.Flen = yyS[yypt-1].item.(int)
-			x.Charset = yyS[yypt-0].item.(*ast.OptBinary).Charset
+			tp := types.NewFieldType(mysql.TypeString)
+			tp.SetFlen(yyS[yypt-1].item.(int))
+			tp.SetCharset(yyS[yypt-0].item.(*ast.OptBinary).Charset)
 			if yyS[yypt-0].item.(*ast.OptBinary).IsBinary {
-				x.Flag |= mysql.BinaryFlag
+				tp.AddFlag(mysql.BinaryFlag)
 			}
-			parser.yyVAL.item = x
+			parser.yyVAL.item = tp
 		}
 	case 2147:
 		{
-			x := types.NewFieldType(mysql.TypeString)
-			x.Charset = yyS[yypt-0].item.(*ast.OptBinary).Charset
+			tp := types.NewFieldType(mysql.TypeString)
+			tp.SetCharset(yyS[yypt-0].item.(*ast.OptBinary).Charset)
 			if yyS[yypt-0].item.(*ast.OptBinary).IsBinary {
-				x.Flag |= mysql.BinaryFlag
+				tp.AddFlag(mysql.BinaryFlag)
 			}
-			parser.yyVAL.item = x
+			parser.yyVAL.item = tp
 		}
 	case 2148:
 		{
-			x := types.NewFieldType(mysql.TypeVarchar)
-			x.Flen = yyS[yypt-1].item.(int)
-			x.Charset = yyS[yypt-0].item.(*ast.OptBinary).Charset
+			tp := types.NewFieldType(mysql.TypeVarchar)
+			tp.SetFlen(yyS[yypt-1].item.(int))
+			tp.SetCharset(yyS[yypt-0].item.(*ast.OptBinary).Charset)
 			if yyS[yypt-0].item.(*ast.OptBinary).IsBinary {
-				x.Flag |= mysql.BinaryFlag
+				tp.AddFlag(mysql.BinaryFlag)
 			}
-			parser.yyVAL.item = x
+			parser.yyVAL.item = tp
 		}
 	case 2149:
 		{
-			x := types.NewFieldType(mysql.TypeVarchar)
-			x.Flen = yyS[yypt-1].item.(int)
-			x.Charset = yyS[yypt-0].item.(*ast.OptBinary).Charset
+			tp := types.NewFieldType(mysql.TypeVarchar)
+			tp.SetFlen(yyS[yypt-1].item.(int))
+			tp.SetCharset(yyS[yypt-0].item.(*ast.OptBinary).Charset)
 			if yyS[yypt-0].item.(*ast.OptBinary).IsBinary {
-				x.Flag |= mysql.BinaryFlag
+				tp.AddFlag(mysql.BinaryFlag)
 			}
-			parser.yyVAL.item = x
+			parser.yyVAL.item = tp
 		}
 	case 2150:
 		{
-			x := types.NewFieldType(mysql.TypeString)
-			x.Flen = yyS[yypt-0].item.(int)
-			x.Charset = charset.CharsetBin
-			x.Collate = charset.CharsetBin
-			x.Flag |= mysql.BinaryFlag
-			parser.yyVAL.item = x
+			tp := types.NewFieldType(mysql.TypeString)
+			tp.SetFlen(yyS[yypt-0].item.(int))
+			tp.SetCharset(charset.CharsetBin)
+			tp.SetCollate(charset.CharsetBin)
+			tp.AddFlag(mysql.BinaryFlag)
+			parser.yyVAL.item = tp
 		}
 	case 2151:
 		{
-			x := types.NewFieldType(mysql.TypeVarchar)
-			x.Flen = yyS[yypt-0].item.(int)
-			x.Charset = charset.CharsetBin
-			x.Collate = charset.CharsetBin
-			x.Flag |= mysql.BinaryFlag
-			parser.yyVAL.item = x
+			tp := types.NewFieldType(mysql.TypeVarchar)
+			tp.SetFlen(yyS[yypt-0].item.(int))
+			tp.SetCharset(charset.CharsetBin)
+			tp.SetCollate(charset.CharsetBin)
+			tp.AddFlag(mysql.BinaryFlag)
+			parser.yyVAL.item = tp
 		}
 	case 2152:
 		{
-			x := yyS[yypt-0].item.(*types.FieldType)
-			x.Charset = charset.CharsetBin
-			x.Collate = charset.CharsetBin
-			x.Flag |= mysql.BinaryFlag
-			parser.yyVAL.item = x
+			tp := yyS[yypt-0].item.(*types.FieldType)
+			tp.SetCharset(charset.CharsetBin)
+			tp.SetCollate(charset.CharsetBin)
+			tp.AddFlag(mysql.BinaryFlag)
+			parser.yyVAL.item = tp
 		}
 	case 2153:
 		{
-			x := yyS[yypt-1].item.(*types.FieldType)
-			x.Charset = yyS[yypt-0].item.(*ast.OptBinary).Charset
+			tp := yyS[yypt-1].item.(*types.FieldType)
+			tp.SetCharset(yyS[yypt-0].item.(*ast.OptBinary).Charset)
 			if yyS[yypt-0].item.(*ast.OptBinary).IsBinary {
-				x.Flag |= mysql.BinaryFlag
+				tp.AddFlag(mysql.BinaryFlag)
 			}
-			parser.yyVAL.item = x
+			parser.yyVAL.item = tp
 		}
 	case 2154:
 		{
-			x := types.NewFieldType(mysql.TypeEnum)
+			tp := types.NewFieldType(mysql.TypeEnum)
 			elems := yyS[yypt-2].item.([]*ast.TextString)
 			opt := yyS[yypt-0].item.(*ast.OptBinary)
-			x.Elems = ast.TransformTextStrings(elems, opt.Charset)
+			tp.SetElems(ast.TransformTextStrings(elems, opt.Charset))
 			fieldLen := -1 // enum_flen = max(ele_flen)
-			for i := range x.Elems {
-				x.Elems[i] = strings.TrimRight(x.Elems[i], " ")
-				if len(x.Elems[i]) > fieldLen {
-					fieldLen = len(x.Elems[i])
+			for i := range tp.GetElems() {
+				tp.SetElem(i, strings.TrimRight(tp.GetElem(i), " "))
+				if len(tp.GetElem(i)) > fieldLen {
+					fieldLen = len(tp.GetElem(i))
 				}
 			}
-			x.Flen = fieldLen
-			x.Charset = opt.Charset
+			tp.SetFlen(fieldLen)
+			tp.SetCharset(opt.Charset)
 			if opt.IsBinary {
-				x.Flag |= mysql.BinaryFlag
+				tp.AddFlag(mysql.BinaryFlag)
 			}
-			parser.yyVAL.item = x
+			parser.yyVAL.item = tp
 		}
 	case 2155:
 		{
-			x := types.NewFieldType(mysql.TypeSet)
+			tp := types.NewFieldType(mysql.TypeSet)
 			elems := yyS[yypt-2].item.([]*ast.TextString)
 			opt := yyS[yypt-0].item.(*ast.OptBinary)
-			x.Elems = ast.TransformTextStrings(elems, opt.Charset)
-			fieldLen := len(x.Elems) - 1 // set_flen = sum(ele_flen) + number_of_ele - 1
-			for i := range x.Elems {
-				x.Elems[i] = strings.TrimRight(x.Elems[i], " ")
-				fieldLen += len(x.Elems[i])
+			tp.SetElems(ast.TransformTextStrings(elems, opt.Charset))
+			fieldLen := len(tp.GetElems()) - 1 // set_flen = sum(ele_flen) + number_of_ele - 1
+			for i := range tp.GetElems() {
+				tp.SetElem(i, strings.TrimRight(tp.GetElem(i), " "))
+				fieldLen += len(tp.GetElem(i))
 			}
-			x.Flen = fieldLen
-			x.Charset = opt.Charset
+			tp.SetFlen(fieldLen)
+			tp.SetCharset(opt.Charset)
 			if opt.IsBinary {
-				x.Flag |= mysql.BinaryFlag
+				tp.AddFlag(mysql.BinaryFlag)
 			}
-			parser.yyVAL.item = x
+			parser.yyVAL.item = tp
 		}
 	case 2156:
 		{
-			x := types.NewFieldType(mysql.TypeJSON)
-			x.Decimal = 0
-			x.Charset = charset.CharsetBin
-			x.Collate = charset.CollationBin
-			parser.yyVAL.item = x
+			tp := types.NewFieldType(mysql.TypeJSON)
+			tp.SetDecimal(0)
+			tp.SetCharset(charset.CharsetBin)
+			tp.SetCollate(charset.CollationBin)
+			parser.yyVAL.item = tp
 		}
 	case 2157:
 		{
-			x := types.NewFieldType(mysql.TypeMediumBlob)
-			x.Charset = yyS[yypt-0].item.(*ast.OptBinary).Charset
+			tp := types.NewFieldType(mysql.TypeMediumBlob)
+			tp.SetCharset(yyS[yypt-0].item.(*ast.OptBinary).Charset)
 			if yyS[yypt-0].item.(*ast.OptBinary).IsBinary {
-				x.Flag |= mysql.BinaryFlag
+				tp.AddFlag(mysql.BinaryFlag)
 			}
-			parser.yyVAL.item = x
+			parser.yyVAL.item = tp
 		}
 	case 2158:
 		{
-			x := types.NewFieldType(mysql.TypeMediumBlob)
-			x.Charset = yyS[yypt-0].item.(*ast.OptBinary).Charset
+			tp := types.NewFieldType(mysql.TypeMediumBlob)
+			tp.SetCharset(yyS[yypt-0].item.(*ast.OptBinary).Charset)
 			if yyS[yypt-0].item.(*ast.OptBinary).IsBinary {
-				x.Flag |= mysql.BinaryFlag
+				tp.AddFlag(mysql.BinaryFlag)
 			}
-			parser.yyVAL.item = x
+			parser.yyVAL.item = tp
 		}
 	case 2178:
 		{
-			x := types.NewFieldType(mysql.TypeTinyBlob)
-			parser.yyVAL.item = x
+			tp := types.NewFieldType(mysql.TypeTinyBlob)
+			parser.yyVAL.item = tp
 		}
 	case 2179:
 		{
-			x := types.NewFieldType(mysql.TypeBlob)
-			x.Flen = yyS[yypt-0].item.(int)
-			parser.yyVAL.item = x
+			tp := types.NewFieldType(mysql.TypeBlob)
+			tp.SetFlen(yyS[yypt-0].item.(int))
+			parser.yyVAL.item = tp
 		}
 	case 2180:
 		{
-			x := types.NewFieldType(mysql.TypeMediumBlob)
-			parser.yyVAL.item = x
+			tp := types.NewFieldType(mysql.TypeMediumBlob)
+			parser.yyVAL.item = tp
 		}
 	case 2181:
 		{
-			x := types.NewFieldType(mysql.TypeLongBlob)
-			parser.yyVAL.item = x
+			tp := types.NewFieldType(mysql.TypeLongBlob)
+			parser.yyVAL.item = tp
 		}
 	case 2182:
 		{
-			x := types.NewFieldType(mysql.TypeMediumBlob)
-			parser.yyVAL.item = x
+			tp := types.NewFieldType(mysql.TypeMediumBlob)
+			parser.yyVAL.item = tp
 		}
 	case 2183:
 		{
-			x := types.NewFieldType(mysql.TypeTinyBlob)
-			parser.yyVAL.item = x
+			tp := types.NewFieldType(mysql.TypeTinyBlob)
+			parser.yyVAL.item = tp
 		}
 	case 2184:
 		{
-			x := types.NewFieldType(mysql.TypeBlob)
-			x.Flen = yyS[yypt-0].item.(int)
-			parser.yyVAL.item = x
+			tp := types.NewFieldType(mysql.TypeBlob)
+			tp.SetFlen(yyS[yypt-0].item.(int))
+			parser.yyVAL.item = tp
 		}
 	case 2185:
 		{
-			x := types.NewFieldType(mysql.TypeMediumBlob)
-			parser.yyVAL.item = x
+			tp := types.NewFieldType(mysql.TypeMediumBlob)
+			parser.yyVAL.item = tp
 		}
 	case 2186:
 		{
-			x := types.NewFieldType(mysql.TypeLongBlob)
-			parser.yyVAL.item = x
+			tp := types.NewFieldType(mysql.TypeLongBlob)
+			parser.yyVAL.item = tp
 		}
 	case 2188:
 		{
@@ -19846,48 +19854,48 @@ yynewstate:
 		}
 	case 2191:
 		{
-			x := types.NewFieldType(mysql.TypeDate)
-			parser.yyVAL.item = x
+			tp := types.NewFieldType(mysql.TypeDate)
+			parser.yyVAL.item = tp
 		}
 	case 2192:
 		{
-			x := types.NewFieldType(mysql.TypeDatetime)
-			x.Flen = mysql.MaxDatetimeWidthNoFsp
-			x.Decimal = yyS[yypt-0].item.(int)
-			if x.Decimal > 0 {
-				x.Flen = x.Flen + 1 + x.Decimal
+			tp := types.NewFieldType(mysql.TypeDatetime)
+			tp.SetFlen(mysql.MaxDatetimeWidthNoFsp)
+			tp.SetDecimal(yyS[yypt-0].item.(int))
+			if tp.GetDecimal() > 0 {
+				tp.SetFlen(tp.GetFlen() + 1 + tp.GetDecimal())
 			}
-			parser.yyVAL.item = x
+			parser.yyVAL.item = tp
 		}
 	case 2193:
 		{
-			x := types.NewFieldType(mysql.TypeTimestamp)
-			x.Flen = mysql.MaxDatetimeWidthNoFsp
-			x.Decimal = yyS[yypt-0].item.(int)
-			if x.Decimal > 0 {
-				x.Flen = x.Flen + 1 + x.Decimal
+			tp := types.NewFieldType(mysql.TypeTimestamp)
+			tp.SetFlen(mysql.MaxDatetimeWidthNoFsp)
+			tp.SetDecimal(yyS[yypt-0].item.(int))
+			if tp.GetDecimal() > 0 {
+				tp.SetFlen(tp.GetFlen() + 1 + tp.GetDecimal())
 			}
-			parser.yyVAL.item = x
+			parser.yyVAL.item = tp
 		}
 	case 2194:
 		{
-			x := types.NewFieldType(mysql.TypeDuration)
-			x.Flen = mysql.MaxDurationWidthNoFsp
-			x.Decimal = yyS[yypt-0].item.(int)
-			if x.Decimal > 0 {
-				x.Flen = x.Flen + 1 + x.Decimal
+			tp := types.NewFieldType(mysql.TypeDuration)
+			tp.SetFlen(mysql.MaxDurationWidthNoFsp)
+			tp.SetDecimal(yyS[yypt-0].item.(int))
+			if tp.GetDecimal() > 0 {
+				tp.SetFlen(tp.GetFlen() + 1 + tp.GetDecimal())
 			}
-			parser.yyVAL.item = x
+			parser.yyVAL.item = tp
 		}
 	case 2195:
 		{
-			x := types.NewFieldType(mysql.TypeYear)
-			x.Flen = yyS[yypt-1].item.(int)
-			if x.Flen != types.UnspecifiedLength && x.Flen != 4 {
+			tp := types.NewFieldType(mysql.TypeYear)
+			tp.SetFlen(yyS[yypt-1].item.(int))
+			if tp.GetFlen() != types.UnspecifiedLength && tp.GetFlen() != 4 {
 				yylex.AppendError(ErrInvalidYearColumnLength.GenWithStackByArgs())
 				return -1
 			}
-			parser.yyVAL.item = x
+			parser.yyVAL.item = tp
 		}
 	case 2196:
 		{
