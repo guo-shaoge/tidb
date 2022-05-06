@@ -16789,6 +16789,9 @@ yynewstate:
 		{
 			ws := yyS[yypt-0].item.(*ast.WithClause)
 			ws.IsRecursive = true
+			for _, cte := range ws.CTEs {
+				cte.IsRecursive = true
+			}
 			parser.yyVAL.item = ws
 		}
 	case 1505:
