@@ -17071,7 +17071,7 @@ yynewstate:
 		}
 	case 1564:
 		{
-			args := []ast.ExprNode{ast.NewValueExpr(yyS[yypt-1].item, parser.charset, parser.collation)}
+			args := []ast.ExprNode{ast.NewParamMarkerExpr(yyS[yypt-1].offset)}
 			if yyS[yypt-0].item != nil {
 				args = append(args, yyS[yypt-0].item.(ast.ExprNode))
 			}
