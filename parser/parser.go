@@ -18191,11 +18191,11 @@ yynewstate:
 		}
 	case 1759:
 		{
-			parser.yyVAL.item = &auth.UserIdentity{Username: yyS[yypt-2].ident, Hostname: yyS[yypt-0].ident}
+			parser.yyVAL.item = &auth.UserIdentity{Username: yyS[yypt-2].ident, Hostname: strings.ToLower(yyS[yypt-0].ident)}
 		}
 	case 1760:
 		{
-			parser.yyVAL.item = &auth.UserIdentity{Username: yyS[yypt-1].ident, Hostname: strings.TrimPrefix(yyS[yypt-0].ident, "@")}
+			parser.yyVAL.item = &auth.UserIdentity{Username: yyS[yypt-1].ident, Hostname: strings.ToLower(strings.TrimPrefix(yyS[yypt-0].ident, "@"))}
 		}
 	case 1761:
 		{
@@ -18215,11 +18215,11 @@ yynewstate:
 		}
 	case 1769:
 		{
-			parser.yyVAL.item = &auth.RoleIdentity{Username: yyS[yypt-2].ident, Hostname: yyS[yypt-0].ident}
+			parser.yyVAL.item = &auth.RoleIdentity{Username: yyS[yypt-2].ident, Hostname: strings.ToLower(yyS[yypt-0].ident)}
 		}
 	case 1770:
 		{
-			parser.yyVAL.item = &auth.RoleIdentity{Username: yyS[yypt-1].ident, Hostname: strings.TrimPrefix(yyS[yypt-0].ident, "@")}
+			parser.yyVAL.item = &auth.RoleIdentity{Username: yyS[yypt-1].ident, Hostname: strings.ToLower(strings.TrimPrefix(yyS[yypt-0].ident, "@"))}
 		}
 	case 1771:
 		{
