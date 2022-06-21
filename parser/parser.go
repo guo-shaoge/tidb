@@ -19010,11 +19010,11 @@ yynewstate:
 		}
 	case 1896:
 		{
-			parser.yyVAL.item = &ast.ShowStmt{Tp: ast.ShowStatsMeta}
+			parser.yyVAL.item = &ast.ShowStmt{Tp: ast.ShowStatsMeta, Table: &ast.TableName{Name: model.NewCIStr("STATS_META"), Schema: model.NewCIStr(mysql.SystemDB)}}
 		}
 	case 1897:
 		{
-			parser.yyVAL.item = &ast.ShowStmt{Tp: ast.ShowStatsHistograms}
+			parser.yyVAL.item = &ast.ShowStmt{Tp: ast.ShowStatsHistograms, Table: &ast.TableName{Name: model.NewCIStr("STATS_HISTOGRAMS"), Schema: model.NewCIStr(mysql.SystemDB)}}
 		}
 	case 1898:
 		{
@@ -19022,7 +19022,7 @@ yynewstate:
 		}
 	case 1899:
 		{
-			parser.yyVAL.item = &ast.ShowStmt{Tp: ast.ShowStatsBuckets}
+			parser.yyVAL.item = &ast.ShowStmt{Tp: ast.ShowStatsBuckets, Table: &ast.TableName{Name: model.NewCIStr("STATS_BUCKETS"), Schema: model.NewCIStr(mysql.SystemDB)}}
 		}
 	case 1900:
 		{
