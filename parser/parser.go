@@ -13251,7 +13251,7 @@ yynewstate:
 	case 330:
 		{
 			parser.yyVAL.statement = &ast.AlterDatabaseStmt{
-				Name:                 yyS[yypt-1].ident,
+				Name:                 model.NewCIStr(yyS[yypt-1].ident),
 				AlterDefaultDatabase: false,
 				Options:              yyS[yypt-0].item.([]*ast.DatabaseOption),
 			}
@@ -13259,7 +13259,7 @@ yynewstate:
 	case 331:
 		{
 			parser.yyVAL.statement = &ast.AlterDatabaseStmt{
-				Name:                 "",
+				Name:                 model.NewCIStr(""),
 				AlterDefaultDatabase: true,
 				Options:              yyS[yypt-0].item.([]*ast.DatabaseOption),
 			}
@@ -13268,7 +13268,7 @@ yynewstate:
 		{
 			parser.yyVAL.statement = &ast.CreateDatabaseStmt{
 				IfNotExists: yyS[yypt-2].item.(bool),
-				Name:        yyS[yypt-1].ident,
+				Name:        model.NewCIStr(yyS[yypt-1].ident),
 				Options:     yyS[yypt-0].item.([]*ast.DatabaseOption),
 			}
 		}
@@ -13915,7 +13915,7 @@ yynewstate:
 		}
 	case 449:
 		{
-			parser.yyVAL.statement = &ast.DropDatabaseStmt{IfExists: yyS[yypt-1].item.(bool), Name: yyS[yypt-0].ident}
+			parser.yyVAL.statement = &ast.DropDatabaseStmt{IfExists: yyS[yypt-1].item.(bool), Name: model.NewCIStr(yyS[yypt-0].ident)}
 		}
 	case 450:
 		{
