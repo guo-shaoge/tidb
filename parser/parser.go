@@ -19881,12 +19881,13 @@ yynewstate:
 			tp := types.NewFieldType(mysql.TypeEnum)
 			elems := yyS[yypt-2].item.([]*ast.TextString)
 			opt := yyS[yypt-0].item.(*ast.OptBinary)
-			tp.SetElems(ast.TransformTextStrings(elems, opt.Charset))
+			tp.SetElems(make([]string, len(elems)))
 			fieldLen := -1 // enum_flen = max(ele_flen)
-			for i := range tp.GetElems() {
-				tp.SetElem(i, strings.TrimRight(tp.GetElem(i), " "))
-				if len(tp.GetElem(i)) > fieldLen {
-					fieldLen = len(tp.GetElem(i))
+			for i, e := range elems {
+				trimmed := strings.TrimRight(e.Value, " ")
+				tp.SetElemWithIsBinaryLit(i, trimmed, e.IsBinaryLiteral)
+				if len(trimmed) > fieldLen {
+					fieldLen = len(trimmed)
 				}
 			}
 			tp.SetFlen(fieldLen)
@@ -19901,11 +19902,12 @@ yynewstate:
 			tp := types.NewFieldType(mysql.TypeSet)
 			elems := yyS[yypt-2].item.([]*ast.TextString)
 			opt := yyS[yypt-0].item.(*ast.OptBinary)
-			tp.SetElems(ast.TransformTextStrings(elems, opt.Charset))
-			fieldLen := len(tp.GetElems()) - 1 // set_flen = sum(ele_flen) + number_of_ele - 1
-			for i := range tp.GetElems() {
-				tp.SetElem(i, strings.TrimRight(tp.GetElem(i), " "))
-				fieldLen += len(tp.GetElem(i))
+			tp.SetElems(make([]string, len(elems)))
+			fieldLen := len(elems) - 1 // set_flen = sum(ele_flen) + number_of_ele - 1
+			for i, e := range elems {
+				trimmed := strings.TrimRight(e.Value, " ")
+				tp.SetElemWithIsBinaryLit(i, trimmed, e.IsBinaryLiteral)
+				fieldLen += len(trimmed)
 			}
 			tp.SetFlen(fieldLen)
 			tp.SetCharset(opt.Charset)
