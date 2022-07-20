@@ -19909,6 +19909,10 @@ yynewstate:
 		{
 			tp := yyS[yypt-1].item.(*types.FieldType)
 			tp.SetCharset(yyS[yypt-0].item.(*ast.OptBinary).Charset)
+			if yyS[yypt-0].item.(*ast.OptBinary).Charset == charset.CharsetBin {
+				tp.AddFlag(mysql.BinaryFlag)
+				tp.SetCollate(charset.CollationBin)
+			}
 			if yyS[yypt-0].item.(*ast.OptBinary).IsBinary {
 				tp.AddFlag(mysql.BinaryFlag)
 			}
@@ -19966,6 +19970,10 @@ yynewstate:
 		{
 			tp := types.NewFieldType(mysql.TypeMediumBlob)
 			tp.SetCharset(yyS[yypt-0].item.(*ast.OptBinary).Charset)
+			if yyS[yypt-0].item.(*ast.OptBinary).Charset == charset.CharsetBin {
+				tp.AddFlag(mysql.BinaryFlag)
+				tp.SetCollate(charset.CollationBin)
+			}
 			if yyS[yypt-0].item.(*ast.OptBinary).IsBinary {
 				tp.AddFlag(mysql.BinaryFlag)
 			}
@@ -19975,6 +19983,10 @@ yynewstate:
 		{
 			tp := types.NewFieldType(mysql.TypeMediumBlob)
 			tp.SetCharset(yyS[yypt-0].item.(*ast.OptBinary).Charset)
+			if yyS[yypt-0].item.(*ast.OptBinary).Charset == charset.CharsetBin {
+				tp.AddFlag(mysql.BinaryFlag)
+				tp.SetCollate(charset.CollationBin)
+			}
 			if yyS[yypt-0].item.(*ast.OptBinary).IsBinary {
 				tp.AddFlag(mysql.BinaryFlag)
 			}
@@ -20050,7 +20062,7 @@ yynewstate:
 		{
 			parser.yyVAL.item = &ast.OptBinary{
 				IsBinary: false,
-				Charset:  "",
+				Charset:  charset.CharsetBin,
 			}
 		}
 	case 2217:
