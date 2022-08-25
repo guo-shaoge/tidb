@@ -20775,14 +20775,11 @@ yynewstate:
 		}
 	case 2323:
 		{
-			l := []*ast.PasswordOrLockOption{}
-			parser.yyVAL.item = l
+			parser.yyVAL.item = []*ast.PasswordOrLockOption{}
 		}
 	case 2324:
 		{
 			parser.yyVAL.item = yyS[yypt-0].item
-			yylex.AppendError(yylex.Errorf("TiDB does not support PASSWORD EXPIRE and ACCOUNT LOCK now, they would be parsed but ignored."))
-			parser.lastErrorAsWarn()
 		}
 	case 2325:
 		{
@@ -20811,6 +20808,8 @@ yynewstate:
 			parser.yyVAL.item = &ast.PasswordOrLockOption{
 				Type: ast.PasswordExpire,
 			}
+			yylex.AppendError(yylex.Errorf("TiDB does not support PASSWORD EXPIRE, they would be parsed but ignored."))
+			parser.lastErrorAsWarn()
 		}
 	case 2330:
 		{
@@ -20818,18 +20817,24 @@ yynewstate:
 				Type:  ast.PasswordExpireInterval,
 				Count: yyS[yypt-1].item.(int64),
 			}
+			yylex.AppendError(yylex.Errorf("TiDB does not support PASSWORD EXPIRE, they would be parsed but ignored."))
+			parser.lastErrorAsWarn()
 		}
 	case 2331:
 		{
 			parser.yyVAL.item = &ast.PasswordOrLockOption{
 				Type: ast.PasswordExpireNever,
 			}
+			yylex.AppendError(yylex.Errorf("TiDB does not support PASSWORD EXPIRE, they would be parsed but ignored."))
+			parser.lastErrorAsWarn()
 		}
 	case 2332:
 		{
 			parser.yyVAL.item = &ast.PasswordOrLockOption{
 				Type: ast.PasswordExpireDefault,
 			}
+			yylex.AppendError(yylex.Errorf("TiDB does not support PASSWORD EXPIRE, they would be parsed but ignored."))
+			parser.lastErrorAsWarn()
 		}
 	case 2333:
 		{
