@@ -13229,11 +13229,11 @@ yynewstate:
 		}
 	case 277:
 		{
-			parser.yyVAL.item = &ast.OnDeleteOpt{ReferOpt: yyS[yypt-0].item.(ast.ReferOptionType)}
+			parser.yyVAL.item = &ast.OnDeleteOpt{ReferOpt: yyS[yypt-0].item.(model.ReferOptionType)}
 		}
 	case 278:
 		{
-			parser.yyVAL.item = &ast.OnUpdateOpt{ReferOpt: yyS[yypt-0].item.(ast.ReferOptionType)}
+			parser.yyVAL.item = &ast.OnUpdateOpt{ReferOpt: yyS[yypt-0].item.(model.ReferOptionType)}
 		}
 	case 279:
 		{
@@ -13257,23 +13257,23 @@ yynewstate:
 		}
 	case 284:
 		{
-			parser.yyVAL.item = ast.ReferOptionRestrict
+			parser.yyVAL.item = model.ReferOptionRestrict
 		}
 	case 285:
 		{
-			parser.yyVAL.item = ast.ReferOptionCascade
+			parser.yyVAL.item = model.ReferOptionCascade
 		}
 	case 286:
 		{
-			parser.yyVAL.item = ast.ReferOptionSetNull
+			parser.yyVAL.item = model.ReferOptionSetNull
 		}
 	case 287:
 		{
-			parser.yyVAL.item = ast.ReferOptionNoAction
+			parser.yyVAL.item = model.ReferOptionNoAction
 		}
 	case 288:
 		{
-			parser.yyVAL.item = ast.ReferOptionSetDefault
+			parser.yyVAL.item = model.ReferOptionSetDefault
 			yylex.AppendError(yylex.Errorf("The SET DEFAULT clause is parsed but ignored by all storage engines."))
 			parser.lastErrorAsWarn()
 		}
@@ -19619,6 +19619,7 @@ yynewstate:
 			cst := yyS[yypt-0].item.(*ast.Constraint)
 			if yyS[yypt-1].item != nil {
 				cst.Name = yyS[yypt-1].item.(string)
+				cst.IsEmptyIndex = len(cst.Name) == 0
 			}
 			parser.yyVAL.item = cst
 		}
