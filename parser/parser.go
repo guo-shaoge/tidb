@@ -13458,12 +13458,11 @@ yynewstate:
 		}
 	case 330:
 		{
-			// Order is parsed but just ignored as MySQL did.
-			parser.yyVAL.item = &ast.IndexPartSpecification{Column: yyS[yypt-2].item.(*ast.ColumnName), Length: yyS[yypt-1].item.(int)}
+			parser.yyVAL.item = &ast.IndexPartSpecification{Column: yyS[yypt-2].item.(*ast.ColumnName), Length: yyS[yypt-1].item.(int), Desc: yyS[yypt-0].item.(bool)}
 		}
 	case 331:
 		{
-			parser.yyVAL.item = &ast.IndexPartSpecification{Expr: yyS[yypt-2].expr}
+			parser.yyVAL.item = &ast.IndexPartSpecification{Expr: yyS[yypt-2].expr, Desc: yyS[yypt-0].item.(bool)}
 		}
 	case 332:
 		{
