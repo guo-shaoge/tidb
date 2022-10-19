@@ -3481,6 +3481,7 @@ func buildNoRangeTableReader(b *executorBuilder, v *plannercore.PhysicalTableRea
 		tablePlan:        v.GetTablePlan(),
 		storeType:        v.StoreType,
 		batchCop:         v.ReadReqType == plannercore.BatchCop,
+		veloxDataSourceID: v.GetVeloxDataSourceID(),
 	}
 	e.buildVirtualColumnInfo()
 	if containsLimit(dagReq.Executors) {

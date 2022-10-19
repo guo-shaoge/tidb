@@ -215,7 +215,7 @@ func (p *PhysicalTableReader) ToSubstraitPB(ctx sessionctx.Context) (rel *substr
 	readRel.BaseSchema = &substraitgo.NamedStruct{Names: baseSchemaNames, Struct: &substraitgo.Type_Struct{Types: baseSchemaTypeStruct}}
 	readRel.ReadType = &substraitgo.ReadRel_NamedTable_{
 		NamedTable: &substraitgo.ReadRel_NamedTable{
-			Names: []string{tableScan.DBName.L + "." + tableScan.Table.Name.L},
+			Names: []string{p.GetVeloxDataSourceID()},
 		}}
 	return &substraitgo.Rel{RelType: &substraitgo.Rel_Read{Read: readRel}}, nil
 }

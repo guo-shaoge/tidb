@@ -78,6 +78,7 @@ type veloxWorker struct {
 	veloxDS *tidb_velox_wrapper.CGoVeloxDataSource
 
 	workerWg sync.WaitGroup
+	veloxQueryCtx tidb_velox_wrapper.VeloxQueryCtx
 }
 
 // For each tableReader, start a worker to:
@@ -86,13 +87,13 @@ type veloxWorker struct {
 // 3. push Velox::RowVectorPtr to veloxDataSource
 func (e *VeloxExec) startWorkers(ctx context.Context) {
 	for _, r := range e.tableReaders {
-		startTS := e.ctx.GetSessionVars().TxnCtx.StartTS
-		// gjt todo: maybe use string as id?
-		ds := tidb_velox_wrapper.NewCGoVeloxDataSource(int64(startTS + uint64(r.id)))
+		// gjt todo: put this in queryCtx
+		ds := tidb_velox_wrapper.NewCGoVeloxDataSource(e.veloxQueryCtx, r.veloxDataSourceID)
 		worker := &veloxWorker{
 			tableReader: r,
 			veloxDS:     ds,
 			workerWg:    e.workerWg,
+			veloxQueryCtx: e.veloxQueryCtx,
 		}
 		e.workerWg.Add(1)
 		worker.run(ctx)
@@ -118,6 +119,6 @@ func (w *veloxWorker) run(ctx context.Context) {
 		var arrow tidb_velox_wrapper.CGoRowVector
 		// arrow := chunkConvertor.convertToArrow(req)
 		// may block. gjt todo: how to cancel
-		w.veloxDS.Enqueue(arrow)
+		w.veloxDS.Enqueue(w.veloxQueryCtx, arrow)
 	}
 }

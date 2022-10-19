@@ -288,6 +288,14 @@ func (p *PhysicalTableReader) appendChildCandidate(op *physicalOptimizeOp) {
 	appendChildCandidate(p, p.tablePlan, op)
 }
 
+func (p *PhysicalTableReader) GetVeloxDataSourceID() string {
+	tableScan, ok := p.TablePlans[0].(*PhysicalTableScan)
+	if !ok {
+		panic("no tablePlan in PhysicalTableScan")
+	}
+	return tableScan.DBName.L + "." + tableScan.Table.Name.L
+}
+
 // PhysicalIndexReader is the index reader in tidb.
 type PhysicalIndexReader struct {
 	physicalSchemaProducer

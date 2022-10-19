@@ -119,6 +119,7 @@ type TableReaderExecutor struct {
 	// If dummy flag is set, this is not a real TableReader, it just provides the KV ranges for UnionScan.
 	// Used by the temporary table, cached table.
 	dummy bool
+	veloxDataSourceID string
 }
 
 // Table implements the dataSourceExecutor interface.

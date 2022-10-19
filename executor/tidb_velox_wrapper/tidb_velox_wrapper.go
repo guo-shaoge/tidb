@@ -37,20 +37,20 @@ type CGoRowVector C.CGoRowVector
 
 type CGoVeloxDataSource struct {
 	tidbDataSource *C.CGoTiDBDataSource
-	id             int64
+	id             string
 }
 
 // Make sure this id unique in one tidb-server in all operators of all queries.
-func NewCGoVeloxDataSource(id int64) *CGoVeloxDataSource {
-	s := C.get_tidb_data_source(C.long(id))
+func NewCGoVeloxDataSource(ctx VeloxQueryCtx, id string) *CGoVeloxDataSource {
+	s := C.get_tidb_data_source(C.CGoTiDBQueryCtx(ctx), C.CString(id), C.size_t(len(id)))
 	return &CGoVeloxDataSource{
 		tidbDataSource: &s,
 		id:             id,
 	}
 }
 
-func (s *CGoVeloxDataSource) Enqueue(data CGoRowVector) {
-	C.enqueue_tidb_data_source(C.long(s.id), C.CGoRowVector(data))
+func (s *CGoVeloxDataSource) Enqueue(ctx VeloxQueryCtx, data CGoRowVector) {
+	C.enqueue_tidb_data_source(C.CGoTiDBQueryCtx(ctx), C.CString(s.id), C.size_t(len(s.id)), C.CGoRowVector(data))
 }
 
 func (s *CGoVeloxDataSource) Destroy() {
