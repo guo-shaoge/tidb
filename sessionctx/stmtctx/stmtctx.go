@@ -22,6 +22,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"unsafe"
 
 	"github.com/pingcap/errors"
 	"github.com/pingcap/tidb/parser"
@@ -329,6 +330,9 @@ type StatementContext struct {
 	// IsExplainAnalyzeDML is true if the statement is "explain analyze DML executors", before responding the explain
 	// results to the client, the transaction should be committed first. See issue #37373 for more details.
 	IsExplainAnalyzeDML bool
+
+	// gjt todo: 
+	VeloxQueryCtx unsafe.Pointer
 }
 
 // StmtHints are SessionVars related sql hints.

@@ -16,6 +16,7 @@ package core
 
 import (
 	"fmt"
+	substraitgo "github.com/AilinKid/substrait-go/proto"
 	"math"
 	"strconv"
 	"unsafe"
@@ -339,6 +340,8 @@ type PhysicalPlan interface {
 	// attach2Task makes the current physical plan as the father of task's physicalPlan and updates the cost of
 	// current task. If the child's task is cop task, some operator may close this task and return a new rootTask.
 	attach2Task(...task) task
+
+	ToSubstraitPB(ctx sessionctx.Context) (*substraitgo.Rel, error)
 
 	// ToPB converts physical plan to tipb executor.
 	ToPB(ctx sessionctx.Context, storeType kv.StoreType) (*tipb.Executor, error)

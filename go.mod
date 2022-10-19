@@ -4,6 +4,7 @@ go 1.19
 
 require (
 	cloud.google.com/go/storage v1.21.0
+	github.com/AilinKid/substrait-go v0.0.0-20221017053606-8cca1dcb1e21
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v0.12.0
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v0.2.0
 	github.com/BurntSushi/toml v1.2.0
@@ -206,6 +207,7 @@ require (
 	github.com/shurcooL/vfsgen v0.0.0-20180711163814-62bca832be04 // indirect
 	github.com/sirupsen/logrus v1.9.0 // indirect
 	github.com/stathat/consistent v1.0.0 // indirect
+	github.com/substrait-io/substrait-go v0.0.0-20220510140743-0f52d57022bf // indirect
 	github.com/tklauser/go-sysconf v0.3.10 // indirect
 	github.com/tklauser/numcpus v0.4.0 // indirect
 	github.com/tmc/grpc-websocket-proxy v0.0.0-20201229170055-e5319fda7802 // indirect

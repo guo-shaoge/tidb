@@ -18,11 +18,15 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	substraitgo "github.com/AilinKid/substrait-go/proto"
 	"runtime/trace"
 	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
+	"github.com/pingcap/tidb/executor/tidb_velox_wrapper"
+	"github.com/golang/protobuf/proto"
+	"unsafe"
 
 	"github.com/opentracing/opentracing-go"
 	"github.com/pingcap/errors"
@@ -480,6 +484,38 @@ func (a *ExecStmt) Exec(ctx context.Context) (_ sqlexec.RecordSet, err error) {
 
 	if sctx.GetSessionVars().StmtCtx.HasMemQuotaHint {
 		sctx.GetSessionVars().StmtCtx.MemTracker.SetBytesLimit(sctx.GetSessionVars().StmtCtx.MemQuotaQuery)
+	}
+	if pp, ok := a.Plan.(plannercore.PhysicalPlan); ok && !sctx.GetSessionVars().InRestrictedSQL {
+		logutil.BgLogger().Info("Velox log start transform substrat plan")
+		rel, err := pp.ToSubstraitPB(sctx)
+		if rel != nil && err == nil && sctx.GetSessionVars().ConnectionID != 0 {
+			plan := &substraitgo.Plan{
+				Relations: []*substraitgo.PlanRel{
+					{
+						RelType: &substraitgo.PlanRel_Root{
+							Root: &substraitgo.RelRoot{Input: rel},
+						},
+					},
+				},
+			}
+			planPB, err := proto.Marshal(plan)
+			if err != nil {
+				return nil, err
+			}
+			veloxQueryCtx := tidb_velox_wrapper.MakeVeloxQueryCtx()
+			sctx.GetSessionVars().StmtCtx.VeloxQueryCtx = unsafe.Pointer(veloxQueryCtx)
+			tidb_velox_wrapper.MakeVeloxTaskCursor(veloxQueryCtx, string(planPB))
+			// // gjt todo: do this in veloxExec
+			// go func(ctx tidb_velox_wrapper.VeloxQueryCtx) {
+			// 	tidb_velox_wrapper.FetchVeloxOutput(ctx)
+			// }(veloxQueryCtx)
+			// logutil.BgLogger().Info("Velox log passing substrait plan: to velox" + plan.String())
+			// go func() {
+			// 	// todo: 1. run 2. receive.
+			// 	// only receive need new routine
+			// 	tidb_velox_wrapper.RunTiDBQuery(plan)
+			// }()
+		}
 	}
 
 	e, err := a.buildExecutor()

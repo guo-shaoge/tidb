@@ -15,6 +15,7 @@
 package core
 
 import (
+	substraitgo "github.com/AilinKid/substrait-go/proto"
 	"github.com/pingcap/errors"
 	"github.com/pingcap/tidb/expression"
 	"github.com/pingcap/tidb/expression/aggregation"
@@ -25,11 +26,17 @@ import (
 	"github.com/pingcap/tidb/table/tables"
 	"github.com/pingcap/tidb/tablecodec"
 	"github.com/pingcap/tidb/telemetry"
+	"github.com/pingcap/tidb/types"
 	"github.com/pingcap/tidb/util"
 	"github.com/pingcap/tidb/util/codec"
 	"github.com/pingcap/tidb/util/ranger"
 	"github.com/pingcap/tipb/go-tipb"
 )
+
+// ToSubstraitPB implements PhysicalPlan ToSubstraitPB interface.
+func (p *basePhysicalPlan) ToSubstraitPB(ctx sessionctx.Context) (_ *substraitgo.Rel, err error) {
+	return nil, errors.Errorf("plan %s fails converts to PB", p.basePlan.ExplainID())
+}
 
 // ToPB implements PhysicalPlan ToPB interface.
 func (p *basePhysicalPlan) ToPB(_ sessionctx.Context, _ kv.StoreType) (*tipb.Executor, error) {
@@ -119,6 +126,11 @@ func (p *PhysicalSelection) ToPB(ctx sessionctx.Context, storeType kv.StoreType)
 	return &tipb.Executor{Tp: tipb.ExecType_TypeSelection, Selection: selExec, ExecutorId: &executorID}, nil
 }
 
+//func (p *PhysicalProjection) ToSubstraitPB() (*substraitgo.Rel, error){
+//	proj := &substraitgo.ProjectRel{}
+//	proj.Input
+//}
+
 // ToPB implements PhysicalPlan ToPB interface.
 func (p *PhysicalProjection) ToPB(ctx sessionctx.Context, storeType kv.StoreType) (*tipb.Executor, error) {
 	sc := ctx.GetSessionVars().StmtCtx
@@ -181,6 +193,31 @@ func (p *PhysicalLimit) ToPB(ctx sessionctx.Context, storeType kv.StoreType) (*t
 		executorID = p.ExplainID().String()
 	}
 	return &tipb.Executor{Tp: tipb.ExecType_TypeLimit, Limit: limitExec, ExecutorId: &executorID}, nil
+}
+
+func (p *PhysicalTableReader) ToSubstraitPB(ctx sessionctx.Context) (rel *substraitgo.Rel, err error) {
+	tableScan, ok := p.TablePlans[0].(*PhysicalTableScan)
+	if !ok {
+		return nil, nil
+	}
+	readRel := &substraitgo.ReadRel{}
+	var baseSchemaNames []string
+	var baseSchemaTypeStruct []*substraitgo.Type
+	for _, col := range tableScan.Table.Cols() {
+		// Velox is case-sensitive. We suppose all the table name and col name is lowercase.
+		baseSchemaNames = append(baseSchemaNames, col.Name.L)
+		colFT := types.TiDBFieldTypeToSubstraitType(&col.FieldType)
+		if colFT == nil {
+			return nil, nil
+		}
+		baseSchemaTypeStruct = append(baseSchemaTypeStruct, colFT)
+	}
+	readRel.BaseSchema = &substraitgo.NamedStruct{Names: baseSchemaNames, Struct: &substraitgo.Type_Struct{Types: baseSchemaTypeStruct}}
+	readRel.ReadType = &substraitgo.ReadRel_NamedTable_{
+		NamedTable: &substraitgo.ReadRel_NamedTable{
+			Names: []string{tableScan.DBName.L + "." + tableScan.Table.Name.L},
+		}}
+	return &substraitgo.Rel{RelType: &substraitgo.Rel_Read{Read: readRel}}, nil
 }
 
 // ToPB implements PhysicalPlan ToPB interface.

@@ -25,6 +25,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/pingcap/tidb/util/logutil"
 	"github.com/pingcap/errors"
 	"github.com/pingcap/failpoint"
 	"github.com/pingcap/kvproto/pkg/diagnosticspb"
@@ -35,6 +36,7 @@ import (
 	"github.com/pingcap/tidb/distsql"
 	"github.com/pingcap/tidb/domain"
 	"github.com/pingcap/tidb/executor/aggfuncs"
+	"github.com/pingcap/tidb/executor/tidb_velox_wrapper"
 	"github.com/pingcap/tidb/expression"
 	"github.com/pingcap/tidb/expression/aggregation"
 	"github.com/pingcap/tidb/infoschema"
@@ -111,6 +113,8 @@ type executorBuilder struct {
 	// can return a correct value even if the session context has already been destroyed
 	forDataReaderBuilder bool
 	dataReaderTS         uint64
+
+	veloxExec *VeloxExec
 }
 
 // CTEStorages stores resTbl and iterInTbl for CTEExec.
@@ -158,6 +162,14 @@ func (b *MockExecutorBuilder) Build(p plannercore.Plan) Executor {
 }
 
 func (b *executorBuilder) build(p plannercore.Plan) Executor {
+	if b.ctx.GetSessionVars().InRestrictedSQL {
+		return b.buildWithInternalSQL(p)
+	}
+	return b.buildWithVelox(p)
+}
+
+// Internal SQL doesn't use velox. 
+func (b *executorBuilder) buildWithInternalSQL(p plannercore.Plan) Executor {
 	switch v := p.(type) {
 	case nil:
 		return nil
@@ -313,6 +325,187 @@ func (b *executorBuilder) build(p plannercore.Plan) Executor {
 		b.err = ErrUnknownPlan.GenWithStack("Unknown Plan %T", p)
 		return nil
 	}
+}
+
+func (b *executorBuilder) buildWithVelox(p plannercore.Plan) Executor {
+	switch v := p.(type) {
+	case nil:
+		return nil
+	case *plannercore.Change:
+		return b.buildChange(v)
+	case *plannercore.CheckTable:
+		return b.buildCheckTable(v)
+	case *plannercore.RecoverIndex:
+		return b.buildRecoverIndex(v)
+	case *plannercore.CleanupIndex:
+		return b.buildCleanupIndex(v)
+	case *plannercore.CheckIndexRange:
+		return b.buildCheckIndexRange(v)
+	case *plannercore.ChecksumTable:
+		return b.buildChecksumTable(v)
+	case *plannercore.ReloadExprPushdownBlacklist:
+		return b.buildReloadExprPushdownBlacklist(v)
+	case *plannercore.ReloadOptRuleBlacklist:
+		return b.buildReloadOptRuleBlacklist(v)
+	case *plannercore.AdminPlugins:
+		return b.buildAdminPlugins(v)
+	case *plannercore.DDL:
+		return b.buildDDL(v)
+	case *plannercore.Deallocate:
+		return b.buildDeallocate(v)
+	case *plannercore.Delete:
+		return b.buildDelete(v)
+	case *plannercore.Execute:
+		return b.buildExecute(v)
+	case *plannercore.Trace:
+		return b.buildTrace(v)
+	case *plannercore.Explain:
+		return b.buildExplain(v)
+	case *plannercore.PointGetPlan:
+		return b.buildPointGet(v)
+	case *plannercore.BatchPointGetPlan:
+		return b.buildBatchPointGet(v)
+	case *plannercore.Insert:
+		return b.buildInsert(v)
+	case *plannercore.LoadData:
+		return b.buildLoadData(v)
+	case *plannercore.LoadStats:
+		return b.buildLoadStats(v)
+	case *plannercore.IndexAdvise:
+		return b.buildIndexAdvise(v)
+	case *plannercore.PlanReplayer:
+		return b.buildPlanReplayer(v)
+	case *plannercore.PhysicalLimit:
+		return b.buildLimit(v)
+	case *plannercore.Prepare:
+		return b.buildPrepare(v)
+	case *plannercore.PhysicalLock:
+		return b.buildSelectLock(v)
+	case *plannercore.CancelDDLJobs:
+		return b.buildCancelDDLJobs(v)
+	case *plannercore.ShowNextRowID:
+		return b.buildShowNextRowID(v)
+	case *plannercore.ShowDDL:
+		return b.buildShowDDL(v)
+	case *plannercore.PhysicalShowDDLJobs:
+		return b.buildShowDDLJobs(v)
+	case *plannercore.ShowDDLJobQueries:
+		return b.buildShowDDLJobQueries(v)
+	case *plannercore.ShowDDLJobQueriesWithRange:
+		return b.buildShowDDLJobQueriesWithRange(v)
+	case *plannercore.ShowSlow:
+		return b.buildShowSlow(v)
+	case *plannercore.PhysicalShow:
+		return b.buildShow(v)
+	case *plannercore.Simple:
+		return b.buildSimple(v)
+	case *plannercore.PhysicalSimpleWrapper:
+		return b.buildSimple(&v.Inner)
+	case *plannercore.Set:
+		return b.buildSet(v)
+	case *plannercore.SetConfig:
+		return b.buildSetConfig(v)
+	case *plannercore.PhysicalSort:
+		return b.buildSort(v)
+	case *plannercore.PhysicalTopN:
+		return b.buildTopN(v)
+	case *plannercore.PhysicalUnionAll:
+		return b.buildUnionAll(v)
+	case *plannercore.Update:
+		return b.buildUpdate(v)
+	case *plannercore.PhysicalUnionScan:
+		return b.buildUnionScanExec(v)
+	case *plannercore.PhysicalHashJoin:
+		return b.buildHashJoin(v)
+	case *plannercore.PhysicalMergeJoin:
+		return b.buildMergeJoin(v)
+	case *plannercore.PhysicalIndexJoin:
+		return b.buildIndexLookUpJoin(v)
+	case *plannercore.PhysicalIndexMergeJoin:
+		return b.buildIndexLookUpMergeJoin(v)
+	case *plannercore.PhysicalIndexHashJoin:
+		return b.buildIndexNestedLoopHashJoin(v)
+	case *plannercore.PhysicalSelection:
+		return b.buildSelection(v)
+	case *plannercore.PhysicalHashAgg:
+		return b.buildHashAgg(v)
+	case *plannercore.PhysicalStreamAgg:
+		return b.buildStreamAgg(v)
+	case *plannercore.PhysicalProjection:
+		// return b.buildProjectionVelox(v)
+		return b.buildProjection(v)
+	case *plannercore.PhysicalMemTable:
+		return b.buildMemTable(v)
+	case *plannercore.PhysicalTableDual:
+		return b.buildTableDual(v)
+	case *plannercore.PhysicalApply:
+		return b.buildApply(v)
+	case *plannercore.PhysicalMaxOneRow:
+		return b.buildMaxOneRow(v)
+	case *plannercore.Analyze:
+		return b.buildAnalyze(v)
+	// case *plannercore.PhysicalTableReader:
+	// 	return b.buildTableReader(v)
+	case *plannercore.PhysicalTableSample:
+		return b.buildTableSample(v)
+	case *plannercore.PhysicalIndexReader:
+		return b.buildIndexReader(v)
+	case *plannercore.PhysicalIndexLookUpReader:
+		return b.buildIndexLookUpReader(v)
+	case *plannercore.PhysicalWindow:
+		return b.buildWindow(v)
+	case *plannercore.PhysicalShuffle:
+		return b.buildShuffle(v)
+	case *plannercore.PhysicalShuffleReceiverStub:
+		return b.buildShuffleReceiverStub(v)
+	case *plannercore.SQLBindPlan:
+		return b.buildSQLBindExec(v)
+	case *plannercore.SplitRegion:
+		return b.buildSplitRegion(v)
+	case *plannercore.PhysicalIndexMergeReader:
+		return b.buildIndexMergeReader(v)
+	case *plannercore.SelectInto:
+		return b.buildSelectInto(v)
+	case *plannercore.AdminShowTelemetry:
+		return b.buildAdminShowTelemetry(v)
+	case *plannercore.AdminResetTelemetryID:
+		return b.buildAdminResetTelemetryID(v)
+	case *plannercore.PhysicalCTE:
+		return b.buildCTE(v)
+	case *plannercore.PhysicalCTETable:
+		return b.buildCTETableReader(v)
+	case *plannercore.CompactTable:
+		return b.buildCompactTable(v)
+	case *plannercore.PhysicalTableReader:
+		return b.buildTableReaderVelox(v)
+	default:
+		if mp, ok := p.(MockPhysicalPlan); ok {
+			return mp.GetExecutor()
+		}
+
+		b.err = ErrUnknownPlan.GenWithStack("Unknown Plan %T", p)
+		return nil
+	}
+}
+
+func (b *executorBuilder) buildProjectionVelox(v *plannercore.PhysicalProjection) Executor {
+	return b.build(v.Children()[0])
+}
+
+func (b *executorBuilder) buildTableReaderVelox(v *plannercore.PhysicalTableReader) Executor {
+	if b.veloxExec == nil {
+		b.veloxExec = &VeloxExec{
+			baseExecutor: newBaseExecutor(b.ctx, v.Schema(), v.ID()),
+			veloxQueryCtx: tidb_velox_wrapper.VeloxQueryCtx(b.ctx.GetSessionVars().StmtCtx.VeloxQueryCtx),
+		}
+	}
+	tableReader := b.buildTableReader(v)
+	if b.err != nil {
+		return nil
+	}
+	b.veloxExec.tableReaders = append(b.veloxExec.tableReaders, tableReader.(*TableReaderExecutor))
+	logutil.BgLogger().Info("Velox log buildTableReaderVelox done")
+	return b.veloxExec
 }
 
 func (b *executorBuilder) buildCancelDDLJobs(v *plannercore.CancelDDLJobs) Executor {

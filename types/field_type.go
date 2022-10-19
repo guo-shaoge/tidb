@@ -16,6 +16,9 @@ package types
 
 import (
 	"fmt"
+	substraitgo "github.com/AilinKid/substrait-go/proto"
+	"github.com/pingcap/tidb/util/logutil"
+	"go.uber.org/zap"
 	"strconv"
 
 	"github.com/pingcap/errors"
@@ -48,6 +51,112 @@ func NewFieldType(tp byte) *FieldType {
 		SetFlen(flen).
 		SetDecimal(decimal).
 		BuildP()
+}
+
+var tpToSubstraitType = map[byte]func(nullability substraitgo.Type_Nullability) *substraitgo.Type{
+	mysql.TypeTiny: func(nullability substraitgo.Type_Nullability) *substraitgo.Type {
+		return &substraitgo.Type{
+			Kind: &substraitgo.Type_I8_{
+				I8: &substraitgo.Type_I8{
+					TypeVariationReference: 0,
+					Nullability:            nullability}}}
+	},
+	mysql.TypeShort: func(nullability substraitgo.Type_Nullability) *substraitgo.Type {
+		return &substraitgo.Type{
+			Kind: &substraitgo.Type_I16_{
+				I16: &substraitgo.Type_I16{
+					TypeVariationReference: 0,
+					Nullability:            nullability}}}
+	},
+	mysql.TypeLong: func(nullability substraitgo.Type_Nullability) *substraitgo.Type {
+		return &substraitgo.Type{
+			Kind: &substraitgo.Type_I32_{
+				I32: &substraitgo.Type_I32{
+					TypeVariationReference: 0,
+					Nullability:            nullability}}}
+	},
+	mysql.TypeFloat: func(nullability substraitgo.Type_Nullability) *substraitgo.Type {
+		return &substraitgo.Type{
+			Kind: &substraitgo.Type_Fp32{
+				Fp32: &substraitgo.Type_FP32{
+					TypeVariationReference: 0,
+					Nullability:            nullability,
+				}}}
+	},
+	mysql.TypeDouble: func(nullability substraitgo.Type_Nullability) *substraitgo.Type {
+		return &substraitgo.Type{
+			Kind: &substraitgo.Type_Fp64{
+				Fp64: &substraitgo.Type_FP64{
+					TypeVariationReference: 0,
+					Nullability:            nullability,
+				}}}
+	},
+	mysql.TypeTimestamp: func(nullability substraitgo.Type_Nullability) *substraitgo.Type {
+		return &substraitgo.Type{
+			Kind: &substraitgo.Type_Timestamp_{
+				Timestamp: &substraitgo.Type_Timestamp{
+					TypeVariationReference: 0,
+					Nullability:            nullability,
+				}}}
+	},
+	mysql.TypeLonglong: func(nullability substraitgo.Type_Nullability) *substraitgo.Type {
+		return &substraitgo.Type{
+			Kind: &substraitgo.Type_I64_{
+				I64: &substraitgo.Type_I64{
+					TypeVariationReference: 0,
+					Nullability:            nullability}}}
+	},
+	mysql.TypeDate: func(nullability substraitgo.Type_Nullability) *substraitgo.Type {
+		return &substraitgo.Type{
+			Kind: &substraitgo.Type_Date_{
+				Date: &substraitgo.Type_Date{
+					TypeVariationReference: 0,
+					Nullability:            nullability}}}
+	},
+	mysql.TypeVarchar: func(nullability substraitgo.Type_Nullability) *substraitgo.Type {
+		return &substraitgo.Type{
+			Kind: &substraitgo.Type_Varchar{
+				Varchar: &substraitgo.Type_VarChar{
+					TypeVariationReference: 0,
+					Nullability:            nullability}}}
+	},
+	mysql.TypeString: func(nullability substraitgo.Type_Nullability) *substraitgo.Type {
+		return &substraitgo.Type{
+			Kind: &substraitgo.Type_Varchar{
+				Varchar: &substraitgo.Type_VarChar{
+					TypeVariationReference: 0,
+					Nullability:            nullability}}}
+	},
+	mysql.TypeVarString: func(nullability substraitgo.Type_Nullability) *substraitgo.Type {
+		return &substraitgo.Type{
+			Kind: &substraitgo.Type_Varchar{
+				Varchar: &substraitgo.Type_VarChar{
+					TypeVariationReference: 0,
+					Nullability:            nullability}}}
+	},
+	mysql.TypeNewDecimal: func(nullability substraitgo.Type_Nullability) *substraitgo.Type {
+		return &substraitgo.Type{
+			Kind: &substraitgo.Type_Decimal_{
+				Decimal: &substraitgo.Type_Decimal{
+					TypeVariationReference: 0,
+					Nullability:            nullability}}}
+	},
+}
+
+// TiDBFieldTypeToSubstraitType indicates
+func TiDBFieldTypeToSubstraitType(ft *FieldType) *substraitgo.Type {
+	// nullability is not set
+	var nullability substraitgo.Type_Nullability
+	if mysql.HasNotNullFlag(ft.GetFlag()) {
+		nullability = substraitgo.Type_NULLABILITY_NULLABLE
+	}
+	f, ok := tpToSubstraitType[ft.GetType()]
+	if !ok {
+		logutil.BgLogger().Error("fail:", zap.Int("tp", int(ft.GetType())))
+		return nil
+	}
+	stp := f(nullability)
+	return stp
 }
 
 // NewFieldTypeWithCollation returns a FieldType,

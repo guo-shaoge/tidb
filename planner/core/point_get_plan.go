@@ -15,6 +15,7 @@
 package core
 
 import (
+	substraitgo "github.com/AilinKid/substrait-go/proto"
 	math2 "math"
 	"sort"
 	"strconv"
@@ -90,6 +91,10 @@ type PointGetPlan struct {
 	planCostVer2 costVer2
 	// accessCols represents actual columns the PointGet will access, which are used to calculate row-size
 	accessCols []*expression.Column
+}
+
+func (p *PointGetPlan) ToSubstraitPB(ctx sessionctx.Context) (*substraitgo.Rel, error) {
+	return nil, nil
 }
 
 type nameValuePair struct {
@@ -317,6 +322,10 @@ type BatchPointGetPlan struct {
 	planCostVer2 costVer2
 	// accessCols represents actual columns the PointGet will access, which are used to calculate row-size
 	accessCols []*expression.Column
+}
+
+func (p *BatchPointGetPlan) ToSubstraitPB(ctx sessionctx.Context) (*substraitgo.Rel, error) {
+	return nil, nil
 }
 
 // Cost implements PhysicalPlan interface
