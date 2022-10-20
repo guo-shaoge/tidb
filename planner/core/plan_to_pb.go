@@ -195,6 +195,8 @@ func (p *PhysicalLimit) ToPB(ctx sessionctx.Context, storeType kv.StoreType) (*t
 	return &tipb.Executor{Tp: tipb.ExecType_TypeLimit, Limit: limitExec, ExecutorId: &executorID}, nil
 }
 
+proj --> tablereader : velox : proj -> gjtexecutor
+
 func (p *PhysicalTableReader) ToSubstraitPB(ctx sessionctx.Context) (rel *substraitgo.Rel, err error) {
 	tableScan, ok := p.TablePlans[0].(*PhysicalTableScan)
 	if !ok {
