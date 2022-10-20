@@ -93,7 +93,7 @@ type PointGetPlan struct {
 	accessCols []*expression.Column
 }
 
-func (p *PointGetPlan) ToSubstraitPB(ctx sessionctx.Context) (*substraitgo.Rel, error) {
+func (p *PointGetPlan) ToSubstraitPB(ctx sessionctx.Context, ssHandler *SubstraitHandler) (*substraitgo.Rel, error) {
 	return nil, nil
 }
 
@@ -324,7 +324,7 @@ type BatchPointGetPlan struct {
 	accessCols []*expression.Column
 }
 
-func (p *BatchPointGetPlan) ToSubstraitPB(ctx sessionctx.Context) (*substraitgo.Rel, error) {
+func (p *BatchPointGetPlan) ToSubstraitPB(ctx sessionctx.Context, ssHandler *SubstraitHandler) (*substraitgo.Rel, error) {
 	return nil, nil
 }
 

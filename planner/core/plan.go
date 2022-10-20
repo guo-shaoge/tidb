@@ -341,7 +341,7 @@ type PhysicalPlan interface {
 	// current task. If the child's task is cop task, some operator may close this task and return a new rootTask.
 	attach2Task(...task) task
 
-	ToSubstraitPB(ctx sessionctx.Context) (*substraitgo.Rel, error)
+	ToSubstraitPB(ctx sessionctx.Context, ssHandler *SubstraitHandler) (*substraitgo.Rel, error)
 
 	// ToPB converts physical plan to tipb executor.
 	ToPB(ctx sessionctx.Context, storeType kv.StoreType) (*tipb.Executor, error)

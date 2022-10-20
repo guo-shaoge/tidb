@@ -20,7 +20,9 @@ import (
 	"github.com/pingcap/tidb/expression"
 	"github.com/pingcap/tidb/expression/aggregation"
 	"github.com/pingcap/tidb/kv"
+	"github.com/pingcap/tidb/parser/ast"
 	"github.com/pingcap/tidb/parser/model"
+	"github.com/pingcap/tidb/parser/mysql"
 	"github.com/pingcap/tidb/sessionctx"
 	"github.com/pingcap/tidb/table"
 	"github.com/pingcap/tidb/table/tables"
@@ -34,7 +36,7 @@ import (
 )
 
 // ToSubstraitPB implements PhysicalPlan ToSubstraitPB interface.
-func (p *basePhysicalPlan) ToSubstraitPB(ctx sessionctx.Context) (_ *substraitgo.Rel, err error) {
+func (p *basePhysicalPlan) ToSubstraitPB(ctx sessionctx.Context, ssHandler *SubstraitHandler) (_ *substraitgo.Rel, err error) {
 	return nil, errors.Errorf("plan %s fails converts to PB", p.basePlan.ExplainID())
 }
 
@@ -125,11 +127,138 @@ func (p *PhysicalSelection) ToPB(ctx sessionctx.Context, storeType kv.StoreType)
 	}
 	return &tipb.Executor{Tp: tipb.ExecType_TypeSelection, Selection: selExec, ExecutorId: &executorID}, nil
 }
+func getSubStraitType(tp byte) string {
+	if tp == mysql.TypeLong {
+		return "i32"
+	}
+	if tp == mysql.TypeLonglong {
+		return "i64"
+	}
+	if tp == mysql.TypeDouble {
+		return "fp64"
+	}
+	panic("not supproted type")
+}
 
-//func (p *PhysicalProjection) ToSubstraitPB() (*substraitgo.Rel, error){
-//	proj := &substraitgo.ProjectRel{}
-//	proj.Input
-//}
+func getSubstraitPBFunctionArguments(offsets []int32) (funcArgs []*substraitgo.FunctionArgument) {
+	getFunctionArgument := func(offset int32) *substraitgo.FunctionArgument {
+		return &substraitgo.FunctionArgument{
+			ArgType: &substraitgo.FunctionArgument_Value{
+				Value: &substraitgo.Expression{
+					RexType: &substraitgo.Expression_Selection{
+						Selection: &substraitgo.Expression_FieldReference{
+							ReferenceType: &substraitgo.Expression_FieldReference_DirectReference{
+								DirectReference: &substraitgo.Expression_ReferenceSegment{
+									ReferenceType: &substraitgo.Expression_ReferenceSegment_StructField_{
+										StructField: &substraitgo.Expression_ReferenceSegment_StructField{
+											// col offset from child chunk
+											Field: offset,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+	}
+	for _, off := range offsets {
+		funcArgs = append(funcArgs, getFunctionArgument(off))
+	}
+	return
+}
+
+type SubstraitHandler struct {
+	autoIncId uint32
+	SigMap    map[string]uint32
+}
+
+func NewSubstraitHandler() *SubstraitHandler {
+	return &SubstraitHandler{
+		autoIncId: uint32(1),
+		SigMap:    map[string]uint32{},
+	}
+}
+
+func (h *SubstraitHandler) insertSig(sigName string) uint32 {
+	if _, ok := h.SigMap[sigName]; !ok {
+		h.SigMap[sigName] = h.autoIncId
+		h.autoIncId++
+	}
+	return h.getSigID(sigName)
+}
+
+func (h *SubstraitHandler) getSigID(sigName string) uint32 {
+	return h.SigMap[sigName]
+}
+
+// ToSubstraitPB implements the substraitgo interface.
+func (p *PhysicalProjection) ToSubstraitPB(ctx sessionctx.Context, ssHandler *SubstraitHandler) (*substraitgo.Rel, error) {
+	childRel, err := p.children[0].ToSubstraitPB(ctx, ssHandler)
+	if err != nil {
+		return nil, err
+	}
+	sigToSubstraitgoExpr := func(sigName string, offsets []int32) *substraitgo.Expression {
+		expr := &substraitgo.Expression{
+			RexType: &substraitgo.Expression_ScalarFunction_{
+				ScalarFunction: &substraitgo.Expression_ScalarFunction{
+					// function anchor
+					FunctionReference: ssHandler.insertSig(sigName),
+					// function args
+					Arguments: getSubstraitPBFunctionArguments(offsets),
+					OutputType: &substraitgo.Type{
+						Kind: &substraitgo.Type_Bool{
+							Bool: &substraitgo.Type_Boolean{
+								Nullability: substraitgo.Type_NULLABILITY_NULLABLE,
+							},
+						},
+					},
+				},
+			},
+		}
+		return expr
+	}
+	sspb := &substraitgo.ProjectRel{
+		Common: &substraitgo.RelCommon{
+			EmitKind: &substraitgo.RelCommon_Direct_{
+				Direct: &substraitgo.RelCommon_Direct{},
+			},
+		},
+		Input: childRel,
+	}
+	// extract function map (assume there are all simple functions)
+	for _, expr := range p.Exprs {
+		if scalarF, ok := expr.(*expression.ScalarFunction); ok {
+			funcSig := ""
+			if scalarF.FuncName.L == ast.LE {
+				funcSig = "lte"
+			}
+			if scalarF.FuncName.L == ast.LT {
+				funcSig = "lt"
+			}
+			if scalarF.FuncName.L == ast.GE {
+				funcSig = "gte"
+			}
+			if scalarF.FuncName.L == ast.GT {
+				funcSig = "gt"
+			}
+			var offset []int32
+			for _, arg := range scalarF.GetArgs() {
+				col, ok := arg.(*expression.Column)
+				if !ok {
+					return nil, errors.Errorf("fail to convert proj to substrait, only support arg of column type")
+				}
+				offset = append(offset, int32(col.Index))
+			}
+			funcSig = funcSig + ":" + getSubStraitType(scalarF.GetArgs()[0].GetType().GetType()) + "_" + getSubStraitType(scalarF.GetArgs()[1].GetType().GetType())
+			sspb.Expressions = append(sspb.Expressions, sigToSubstraitgoExpr(funcSig, offset))
+		}
+	}
+	return &substraitgo.Rel{
+		RelType: &substraitgo.Rel_Project{Project: sspb},
+	}, nil
+}
 
 // ToPB implements PhysicalPlan ToPB interface.
 func (p *PhysicalProjection) ToPB(ctx sessionctx.Context, storeType kv.StoreType) (*tipb.Executor, error) {
@@ -195,9 +324,7 @@ func (p *PhysicalLimit) ToPB(ctx sessionctx.Context, storeType kv.StoreType) (*t
 	return &tipb.Executor{Tp: tipb.ExecType_TypeLimit, Limit: limitExec, ExecutorId: &executorID}, nil
 }
 
-proj --> tablereader : velox : proj -> gjtexecutor
-
-func (p *PhysicalTableReader) ToSubstraitPB(ctx sessionctx.Context) (rel *substraitgo.Rel, err error) {
+func (p *PhysicalTableReader) ToSubstraitPB(ctx sessionctx.Context, ssHandler *SubstraitHandler) (rel *substraitgo.Rel, err error) {
 	tableScan, ok := p.TablePlans[0].(*PhysicalTableScan)
 	if !ok {
 		return nil, nil
