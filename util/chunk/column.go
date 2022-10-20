@@ -69,6 +69,18 @@ type Column struct {
 	avoidReusing bool // avoid reusing the Column by allocator
 }
 
+func (c *Column) Data() []byte {
+	return c.data
+}
+func (c *Column) Length() int {
+	return c.length
+}
+func (c *Column) Offsets() []int64 {
+	return c.offsets
+}
+func (c *Column) NullBitmap() []byte {
+	return c.nullBitmap
+}
 // ColumnAllocator defines an allocator for Column.
 type ColumnAllocator interface {
 	NewColumn(ft *types.FieldType, count int) *Column

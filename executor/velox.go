@@ -22,6 +22,7 @@ import (
 	"github.com/pingcap/tidb/executor/tidb_velox_wrapper"
 	"github.com/pingcap/tidb/util/chunk"
 	"github.com/pingcap/tidb/util/logutil"
+	"github.com/pingcap/tidb/types"
 )
 
 var _ Executor = &VeloxExec{}
@@ -79,6 +80,9 @@ type veloxWorker struct {
 
 	workerWg sync.WaitGroup
 	veloxQueryCtx tidb_velox_wrapper.VeloxQueryCtx
+
+	// For convert Chunk to VeloxVector.
+	retFieldTypes []*types.FieldType
 }
 
 // For each tableReader, start a worker to:
@@ -94,6 +98,7 @@ func (e *VeloxExec) startWorkers(ctx context.Context) {
 			veloxDS:     ds,
 			workerWg:    e.workerWg,
 			veloxQueryCtx: e.veloxQueryCtx,
+			retFieldTypes: e.base().retFieldTypes,
 		}
 		e.workerWg.Add(1)
 		worker.run(ctx)
@@ -116,9 +121,9 @@ func (w *veloxWorker) run(ctx context.Context) {
 			break
 		}
 
-		var arrow tidb_velox_wrapper.CGoRowVector
 		// arrow := chunkConvertor.convertToArrow(req)
 		// may block. gjt todo: how to cancel
-		w.veloxDS.Enqueue(w.veloxQueryCtx, arrow)
+		// w.veloxDS.Enqueue(w.veloxQueryCtx, arrow)
+		w.veloxDS.EnqueueTiDBChunk(w.veloxQueryCtx, req, w.retFieldTypes)
 	}
 }
