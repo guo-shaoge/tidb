@@ -31,8 +31,10 @@ import (
 	"github.com/pingcap/tidb/types"
 	"github.com/pingcap/tidb/util"
 	"github.com/pingcap/tidb/util/codec"
+	"github.com/pingcap/tidb/util/logutil"
 	"github.com/pingcap/tidb/util/ranger"
 	"github.com/pingcap/tipb/go-tipb"
+	"go.uber.org/zap"
 )
 
 // ToSubstraitPB implements PhysicalPlan ToSubstraitPB interface.
@@ -193,31 +195,152 @@ func (h *SubstraitHandler) getSigID(sigName string) uint32 {
 	return h.SigMap[sigName]
 }
 
-// ToSubstraitPB implements the substraitgo interface.
-func (p *PhysicalProjection) ToSubstraitPB(ctx sessionctx.Context, ssHandler *SubstraitHandler) (*substraitgo.Rel, error) {
-	childRel, err := p.children[0].ToSubstraitPB(ctx, ssHandler)
-	if err != nil {
-		return nil, err
+func scalarFuncFieldTypeToSubstraitOutputType(sf *expression.ScalarFunction) (outputType *substraitgo.Type) {
+	switch sf.GetType().EvalType() {
+	case types.ETInt:
+		outputType = &substraitgo.Type{
+			Kind: &substraitgo.Type_I64_{
+				I64: &substraitgo.Type_I64{},
+			},
+		}
+	case types.ETReal:
+		outputType = &substraitgo.Type{
+			Kind: &substraitgo.Type_Fp64{
+				Fp64: &substraitgo.Type_FP64{},
+			},
+		}
 	}
-	sigToSubstraitgoExpr := func(sigName string, offsets []int32) *substraitgo.Expression {
-		expr := &substraitgo.Expression{
-			RexType: &substraitgo.Expression_ScalarFunction_{
-				ScalarFunction: &substraitgo.Expression_ScalarFunction{
-					// function anchor
-					FunctionReference: ssHandler.insertSig(sigName),
-					// function args
-					Arguments: getSubstraitPBFunctionArguments(offsets),
-					OutputType: &substraitgo.Type{
-						Kind: &substraitgo.Type_Bool{
-							Bool: &substraitgo.Type_Boolean{
-								Nullability: substraitgo.Type_NULLABILITY_NULLABLE,
+	switch sf.FuncName.L {
+	case "lt", "lte", "gt", "gte", "and", "or", "eq", "not":
+		outputType = &substraitgo.Type{
+			Kind: &substraitgo.Type_Bool{
+				Bool: &substraitgo.Type_Boolean{
+					Nullability: substraitgo.Type_NULLABILITY_NULLABLE,
+				},
+			},
+		}
+	}
+	return
+}
+
+func (h *SubstraitHandler) scalarFuncToSubstraitgoExpr(sf *expression.ScalarFunction) (*substraitgo.Expression, error) {
+	funcSig := tiDBFuncNameToVeloxFuncName[sf.FuncName.L]
+	var offsets []int32
+	for _, arg := range sf.GetArgs() {
+		col, ok := arg.(*expression.Column)
+		if !ok {
+			return nil, errors.Errorf("fail to convert proj to substrait, only support arg of column type")
+		}
+		offsets = append(offsets, int32(col.Index))
+	}
+	funcSig = funcSig + ":" + getSubStraitType(sf.GetArgs()[0].GetType().GetType()) + "_" + getSubStraitType(sf.GetArgs()[1].GetType().GetType())
+
+	sExpr := &substraitgo.Expression{
+		RexType: &substraitgo.Expression_ScalarFunction_{
+			ScalarFunction: &substraitgo.Expression_ScalarFunction{
+				// function anchor
+				FunctionReference: h.insertSig(funcSig),
+				// function args
+				Arguments:  getSubstraitPBFunctionArguments(offsets),
+				OutputType: scalarFuncFieldTypeToSubstraitOutputType(sf),
+			},
+		},
+	}
+	return sExpr, nil
+}
+
+func (h *SubstraitHandler) columnToSubstraitgoExpr(col *expression.Column) *substraitgo.Expression {
+	sExpr := &substraitgo.Expression{
+		RexType: &substraitgo.Expression_Selection{
+			Selection: &substraitgo.Expression_FieldReference{
+				ReferenceType: &substraitgo.Expression_FieldReference_DirectReference{
+					DirectReference: &substraitgo.Expression_ReferenceSegment{
+						ReferenceType: &substraitgo.Expression_ReferenceSegment_StructField_{
+							StructField: &substraitgo.Expression_ReferenceSegment_StructField{
+								Field: int32(col.Index),
 							},
 						},
 					},
 				},
 			},
+		},
+	}
+	return sExpr
+}
+
+func tidbConstToVeloxExpressionLiteral(cont *expression.Constant) (el *substraitgo.Expression_Literal) {
+	switch cont.GetType().GetType() {
+	case mysql.TypeLonglong:
+		el = &substraitgo.Expression_Literal{
+			LiteralType: &substraitgo.Expression_Literal_I64{
+				I64: cont.Value.GetInt64(),
+			},
 		}
-		return expr
+	case mysql.TypeFloat:
+		el = &substraitgo.Expression_Literal{
+			LiteralType: &substraitgo.Expression_Literal_Fp32{
+				Fp32: cont.Value.GetFloat32(),
+			},
+		}
+	case mysql.TypeDouble:
+		el = &substraitgo.Expression_Literal{
+			LiteralType: &substraitgo.Expression_Literal_Fp64{
+				Fp64: cont.Value.GetFloat64(),
+			},
+		}
+	}
+	return
+}
+
+func (h *SubstraitHandler) constToSubstraitgoExpr(cont *expression.Constant) *substraitgo.Expression {
+	sExpr := &substraitgo.Expression{
+		RexType: &substraitgo.Expression_Literal_{
+			Literal: tidbConstToVeloxExpressionLiteral(cont),
+		},
+	}
+	return sExpr
+}
+
+func (h *SubstraitHandler) buildSubstraitProjExpression(tidbExpr []expression.Expression) (substraitgoExprs []*substraitgo.Expression, err error) {
+	for _, expr := range tidbExpr {
+		var sExpr *substraitgo.Expression
+		var err error
+		switch x := expr.(type) {
+		case *expression.Column:
+			sExpr = h.columnToSubstraitgoExpr(x)
+		case *expression.Constant:
+			sExpr = h.constToSubstraitgoExpr(x)
+		case *expression.ScalarFunction:
+			sExpr, err = h.scalarFuncToSubstraitgoExpr(x)
+			if err != nil {
+				return nil, err
+			}
+		}
+		substraitgoExprs = append(substraitgoExprs, sExpr)
+	}
+	return substraitgoExprs, nil
+}
+
+var tiDBFuncNameToVeloxFuncName = map[string]string{
+	ast.LE:       "lte",
+	ast.LT:       "lt",
+	ast.GE:       "gte",
+	ast.GT:       "gt",
+	ast.Plus:     "plus",
+	ast.Minus:    "minus",
+	ast.Mul:      "multiply",
+	ast.Mod:      "mod",
+	ast.EQ:       "eq",
+	ast.UnaryNot: "not",
+	ast.And:      "and",
+	ast.LogicOr:  "or",
+}
+
+// ToSubstraitPB implements the substraitgo interface.
+func (p *PhysicalProjection) ToSubstraitPB(ctx sessionctx.Context, ssHandler *SubstraitHandler) (*substraitgo.Rel, error) {
+	childRel, err := p.children[0].ToSubstraitPB(ctx, ssHandler)
+	if err != nil {
+		return nil, err
 	}
 	sspb := &substraitgo.ProjectRel{
 		Common: &substraitgo.RelCommon{
@@ -227,34 +350,14 @@ func (p *PhysicalProjection) ToSubstraitPB(ctx sessionctx.Context, ssHandler *Su
 		},
 		Input: childRel,
 	}
-	// extract function map (assume there are all simple functions)
-	for _, expr := range p.Exprs {
-		if scalarF, ok := expr.(*expression.ScalarFunction); ok {
-			funcSig := ""
-			if scalarF.FuncName.L == ast.LE {
-				funcSig = "lte"
-			}
-			if scalarF.FuncName.L == ast.LT {
-				funcSig = "lt"
-			}
-			if scalarF.FuncName.L == ast.GE {
-				funcSig = "gte"
-			}
-			if scalarF.FuncName.L == ast.GT {
-				funcSig = "gt"
-			}
-			var offset []int32
-			for _, arg := range scalarF.GetArgs() {
-				col, ok := arg.(*expression.Column)
-				if !ok {
-					return nil, errors.Errorf("fail to convert proj to substrait, only support arg of column type")
-				}
-				offset = append(offset, int32(col.Index))
-			}
-			funcSig = funcSig + ":" + getSubStraitType(scalarF.GetArgs()[0].GetType().GetType()) + "_" + getSubStraitType(scalarF.GetArgs()[1].GetType().GetType())
-			sspb.Expressions = append(sspb.Expressions, sigToSubstraitgoExpr(funcSig, offset))
-		}
+	sspbExpression, err := ssHandler.buildSubstraitProjExpression(p.Exprs)
+	if err != nil {
+		logutil.BgLogger().Error("error", zap.Error(err))
+		return nil, err
 	}
+	sspb.Expressions = sspbExpression
+	logutil.BgLogger().Warn("expression", zap.Int("len", len(sspb.Expressions)))
+	// extract function map (assume there are all simple functions)
 	return &substraitgo.Rel{
 		RelType: &substraitgo.Rel_Project{Project: sspb},
 	}, nil
