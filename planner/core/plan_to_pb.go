@@ -349,6 +349,28 @@ func (p *PhysicalTableReader) ToSubstraitPB(ctx sessionctx.Context, ssHandler *S
 	return &substraitgo.Rel{RelType: &substraitgo.Rel_Read{Read: readRel}}, nil
 }
 
+func (p *PhysicalTableScan) ToSubstraitPB(ctx sessionctx.Context, ssHandler *SubstraitHandler) (rel *substraitgo.Rel, err error) {
+	tableScan := p
+	readRel := &substraitgo.ReadRel{}
+	var baseSchemaNames []string
+	var baseSchemaTypeStruct []*substraitgo.Type
+	for _, col := range tableScan.Table.Cols() {
+		// Velox is case-sensitive. We suppose all the table name and col name is lowercase.
+		baseSchemaNames = append(baseSchemaNames, col.Name.L)
+		colFT := types.TiDBFieldTypeToSubstraitType(&col.FieldType)
+		if colFT == nil {
+			return nil, nil
+		}
+		baseSchemaTypeStruct = append(baseSchemaTypeStruct, colFT)
+	}
+	readRel.BaseSchema = &substraitgo.NamedStruct{Names: baseSchemaNames, Struct: &substraitgo.Type_Struct{Types: baseSchemaTypeStruct}}
+	readRel.ReadType = &substraitgo.ReadRel_NamedTable_{
+		NamedTable: &substraitgo.ReadRel_NamedTable{
+			Names: []string{tableScan.DBName.L + "." + tableScan.Table.Name.L},
+		}}
+	return &substraitgo.Rel{RelType: &substraitgo.Rel_Read{Read: readRel}}, nil
+}
+
 // ToPB implements PhysicalPlan ToPB interface.
 func (p *PhysicalTableScan) ToPB(ctx sessionctx.Context, storeType kv.StoreType) (*tipb.Executor, error) {
 	if storeType == kv.TiFlash && p.Table.GetPartitionInfo() != nil && p.IsMPPOrBatchCop && p.ctx.GetSessionVars().StmtCtx.UseDynamicPartitionPrune() {

@@ -17,6 +17,11 @@ package executor
 import (
 	"bytes"
 	"context"
+	substraitgo "github.com/AilinKid/substrait-go/proto"
+	"github.com/golang/protobuf/proto"
+	"github.com/pingcap/tidb/util/logutil"
+	"github.com/substrait-io/substrait-go/proto/extensions"
+	"go.uber.org/zap"
 	"math"
 	"strconv"
 	"strings"
@@ -3249,6 +3254,45 @@ func buildNoRangeTableReader(b *executorBuilder, v *plannercore.PhysicalTableRea
 	dagReq, err := constructDAGReq(b.ctx, tablePlans, v.StoreType)
 	if err != nil {
 		return nil, err
+	}
+	ssHandler := plannercore.NewSubstraitHandler()
+	rel, err := v.GetTablePlan().ToSubstraitPB(b.ctx, ssHandler)
+	var veloxPlan *substraitgo.Plan
+	if v.StoreType == kv.TiFlash && rel != nil && err == nil && b.ctx.GetSessionVars().ConnectionID != 0 {
+		veloxPlan = &substraitgo.Plan{
+			ExtensionUris: []*extensions.SimpleExtensionURI{
+				{
+					ExtensionUriAnchor: uint32(1),
+					Uri:                "whatever",
+				},
+			},
+			Relations: []*substraitgo.PlanRel{
+				{
+					RelType: &substraitgo.PlanRel_Root{
+						Root: &substraitgo.RelRoot{Input: rel},
+					},
+				},
+			},
+		}
+		for funcName, funcAnchor := range ssHandler.SigMap {
+			veloxPlan.Extensions = append(veloxPlan.Extensions, &extensions.SimpleExtensionDeclaration{
+				MappingType: &extensions.SimpleExtensionDeclaration_ExtensionFunction_{
+					ExtensionFunction: &extensions.SimpleExtensionDeclaration_ExtensionFunction{
+						ExtensionUriReference: 1,
+						FunctionAnchor:        funcAnchor,
+						Name:                  funcName,
+					},
+				},
+			})
+		}
+		logutil.BgLogger().Error("plan to dagrequest", zap.String("pushdown to tiflash", veloxPlan.String()))
+	}
+
+	if v.StoreType == kv.TiFlash && veloxPlan != nil {
+		dagReq.VeloxPlan, err = proto.Marshal(veloxPlan)
+		if err != nil {
+			return nil, errors.Errorf("marshal veloxPlan got error")
+		}
 	}
 	ts, err := v.GetTableScan()
 	if err != nil {
