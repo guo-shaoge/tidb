@@ -13,6 +13,7 @@ import "github.com/pingcap/tidb/util/chunk"
 import "github.com/pingcap/tidb/types"
 import "unsafe"
 import "github.com/pingcap/tidb/parser/mysql"
+import "fmt"
 
 type VeloxQueryCtx C.CGoTiDBQueryCtx
 
@@ -25,9 +26,30 @@ func MakeVeloxTaskCursor(ctx VeloxQueryCtx, planPB string) {
 }
 
 // gjt todo: return RowVector directly
-func FetchVeloxOutput(ctx VeloxQueryCtx) {
+func FetchVeloxOutput(ctx VeloxQueryCtx, types []*types.FieldType, chk *chunk.Chunk) {
 	// return C.fetch_velox_output(ctx)
-	C.fetch_velox_output(C.CGoTiDBQueryCtx(ctx))
+	chk.Reset()
+	var cols *C.TiDBColumn
+	var col_num C.size_t
+	fmt.Println("gjt C.fetch_velox_output beg")
+	// gjt todo: If no more input, col_num will be zero. how to return error.
+	C.fetch_velox_output(C.CGoTiDBQueryCtx(ctx), &cols, &col_num)
+	fmt.Println("gjt C.fetch_velox_output done. col_num: %d", col_num)
+
+	for i := 0; i < int(col_num); i++ {
+		fmt.Println("handling col ", i, types[i].GetType())
+		realCol := *(*C.TiDBColumn)(unsafe.Pointer(uintptr(unsafe.Pointer(cols)) + uintptr(i) * unsafe.Sizeof(cols)))
+		if types[i].GetType() == mysql.TypeLong {
+			var forSizeOf int32
+			for j := 0; j < int(realCol.length); j++ {
+				chk.AppendInt64(i, int64(*(*int32)(unsafe.Pointer(uintptr(unsafe.Pointer(realCol.data)) + uintptr(j) * unsafe.Sizeof(forSizeOf)))))
+			}
+		} else if types[i].GetType() == mysql.TypeLonglong {
+		} else if types[i].GetType() == mysql.TypeFloat {
+		} else if types[i].GetType() == mysql.TypeDouble {
+		} else {
+		}
+	}
 }
 
 func DestroyVeloxQueryCtx(ctx VeloxQueryCtx) {
@@ -87,6 +109,10 @@ func (s *CGoVeloxDataSource) EnqueueTiDBChunk(ctx VeloxQueryCtx, chk *chunk.Chun
 		C.CGoTiDBQueryCtx(ctx), (*C.CGoStdVector)(&vecs[0]), 
 		(*C.TiDBColumnType)(&vecTypes[0]), 
 		C.size_t(len(vecs)), C.CString(s.id), C.size_t(len(s.id)))
+}
+
+func (s *CGoVeloxDataSource) NoMoreInput(ctx VeloxQueryCtx) {
+	C.no_more_input(C.CGoTiDBQueryCtx(ctx), C.CString(s.id), C.size_t(len(s.id)))
 }
 
 func (s *CGoVeloxDataSource) Enqueue(ctx VeloxQueryCtx, data CGoRowVector) {

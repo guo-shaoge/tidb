@@ -497,6 +497,7 @@ func (b *executorBuilder) buildTableReaderVelox(v *plannercore.PhysicalTableRead
 		b.veloxExec = &VeloxExec{
 			baseExecutor: newBaseExecutor(b.ctx, v.Schema(), v.ID()),
 			veloxQueryCtx: tidb_velox_wrapper.VeloxQueryCtx(b.ctx.GetSessionVars().StmtCtx.VeloxQueryCtx),
+			workerWg: &sync.WaitGroup{},
 		}
 	}
 	tableReader := b.buildTableReader(v)

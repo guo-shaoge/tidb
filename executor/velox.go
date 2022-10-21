@@ -32,7 +32,7 @@ type VeloxExec struct {
 
 	prepared     bool
 	tableReaders []*TableReaderExecutor
-	workerWg     sync.WaitGroup
+	workerWg     *sync.WaitGroup
 
 	veloxQueryCtx tidb_velox_wrapper.VeloxQueryCtx
 }
@@ -48,13 +48,13 @@ func (e *VeloxExec) Open(ctx context.Context) (err error) {
 	return err
 }
 
-func (e *VeloxExec) Next(ctx context.Context, _ *chunk.Chunk) error {
+func (e *VeloxExec) Next(ctx context.Context, req *chunk.Chunk) error {
 	logutil.BgLogger().Info("Velox log VeloxExec Next beg")
 	if !e.prepared {
 		e.startWorkers(ctx)
 		e.prepared = true
 	}
-	tidb_velox_wrapper.FetchVeloxOutput(e.veloxQueryCtx)
+	tidb_velox_wrapper.FetchVeloxOutput(e.veloxQueryCtx, e.base().retFieldTypes, req)
 	logutil.BgLogger().Info("Velox log VeloxExec Next done")
 	return nil
 }
@@ -78,11 +78,13 @@ type veloxWorker struct {
 	// Each tableReader correspond one.
 	veloxDS *tidb_velox_wrapper.CGoVeloxDataSource
 
-	workerWg sync.WaitGroup
+	workerWg *sync.WaitGroup
 	veloxQueryCtx tidb_velox_wrapper.VeloxQueryCtx
 
 	// For convert Chunk to VeloxVector.
 	retFieldTypes []*types.FieldType
+
+	ve *VeloxExec
 }
 
 // For each tableReader, start a worker to:
@@ -99,6 +101,8 @@ func (e *VeloxExec) startWorkers(ctx context.Context) {
 			workerWg:    e.workerWg,
 			veloxQueryCtx: e.veloxQueryCtx,
 			retFieldTypes: e.base().retFieldTypes,
+			// gjt todo: check why velox not stop.
+			ve: e,
 		}
 		e.workerWg.Add(1)
 		worker.run(ctx)
@@ -117,7 +121,7 @@ func (w *veloxWorker) run(ctx context.Context) {
 		w.tableReader.Next(ctx, req)
 		logutil.BgLogger().Info(fmt.Sprintf("Velox log VeloxExec tableReader one chunk req.Num(): %d\n", req.NumRows()))
 		if req.NumRows() == 0 {
-			// w.veloxDS.noMoreInput()
+			w.veloxDS.NoMoreInput(w.veloxQueryCtx)
 			break
 		}
 
@@ -126,4 +130,5 @@ func (w *veloxWorker) run(ctx context.Context) {
 		// w.veloxDS.Enqueue(w.veloxQueryCtx, arrow)
 		w.veloxDS.EnqueueTiDBChunk(w.veloxQueryCtx, req, w.retFieldTypes)
 	}
+	w.workerWg.Done()
 }
