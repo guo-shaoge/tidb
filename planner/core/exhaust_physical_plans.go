@@ -2877,17 +2877,18 @@ func (la *LogicalAggregation) exhaustPhysicalPlans(prop *property.PhysicalProper
 
 	preferHash, preferStream := la.ResetHintIfConflicted()
 
-	hashAggs := la.getHashAggs(prop)
-	if hashAggs != nil && preferHash {
-		return hashAggs, true, nil
-	}
+	//hashAggs := la.getHashAggs(prop)
+	//if hashAggs != nil && preferHash {
+	//	return hashAggs, true, nil
+	//}
 
 	streamAggs := la.getStreamAggs(prop)
 	if streamAggs != nil && preferStream {
 		return streamAggs, true, nil
 	}
 
-	aggs := append(hashAggs, streamAggs...)
+
+	aggs := streamAggs
 
 	if streamAggs == nil && preferStream && !prop.IsSortItemEmpty() {
 		errMsg := "Optimizer Hint STREAM_AGG is inapplicable"

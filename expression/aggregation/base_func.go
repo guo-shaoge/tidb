@@ -185,12 +185,7 @@ func (a *baseFuncDesc) typeInfer4ApproxPercentile(ctx sessionctx.Context) error 
 func (a *baseFuncDesc) typeInfer4Sum(ctx sessionctx.Context) {
 	switch a.Args[0].GetType().GetType() {
 	case mysql.TypeTiny, mysql.TypeShort, mysql.TypeInt24, mysql.TypeLong, mysql.TypeLonglong, mysql.TypeYear:
-		a.RetTp = types.NewFieldType(mysql.TypeNewDecimal)
-		a.RetTp.SetFlenUnderLimit(a.Args[0].GetType().GetFlen() + 21)
-		a.RetTp.SetDecimal(0)
-		if a.Args[0].GetType().GetFlen() < 0 {
-			a.RetTp.SetFlen(mysql.MaxDecimalWidth)
-		}
+		a.RetTp = types.NewFieldType(mysql.TypeLonglong)
 	case mysql.TypeNewDecimal:
 		a.RetTp = types.NewFieldType(mysql.TypeNewDecimal)
 		a.RetTp.UpdateFlenAndDecimalUnderLimit(a.Args[0].GetType(), 0, 22)
