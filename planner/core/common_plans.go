@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"github.com/pingcap/tipb/go-tipb"
 
 	"github.com/pingcap/errors"
 	"github.com/pingcap/tidb/expression"
@@ -785,7 +786,8 @@ func (e *Explain) explainFlatPlanInRowFormat(flat *FlatPhysicalPlan) {
 
 func (e *Explain) explainFlatOpInRowFormat(flatOp *FlatOperator) {
 	taskTp := ""
-	if e.ctx.GetSessionVars().StmtCtx.UseVelox {
+	if e.ctx != nil && e.ctx.GetSessionVars() != nil &&
+	!e.ctx.GetSessionVars().InRestrictedSQL && e.ctx.GetSessionVars().StmtCtx.UseVelox {
 		if flatOp.IsRoot {
 			taskTp = "root"
 		} else {
