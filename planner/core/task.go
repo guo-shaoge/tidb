@@ -1383,6 +1383,7 @@ func (p *basePhysicalAgg) convertAvgForMPP() *PhysicalProjection {
 }
 
 func (p *basePhysicalAgg) newPartialAggregate(copTaskType kv.StoreType, isMPPTask bool) (partial, final PhysicalPlan) {
+	return nil, p.self
 	// Check if this aggregation can push down.
 	if !CheckAggCanPushCop(p.ctx, p.AggFuncs, p.GroupByItems, copTaskType) {
 		return nil, p.self

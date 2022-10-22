@@ -77,6 +77,106 @@ func (p *PhysicalHashAgg) ToPB(ctx sessionctx.Context, storeType kv.StoreType) (
 	return &tipb.Executor{Tp: tipb.ExecType_TypeAggregation, Aggregation: aggExec, ExecutorId: &executorID}, nil
 }
 
+func evalTypeToSSPBType(evalType types.EvalType) (outputType *substraitgo.Type, err error) {
+	switch evalType {
+	case types.ETInt:
+		outputType = &substraitgo.Type{
+			Kind: &substraitgo.Type_I64_{
+				I64: &substraitgo.Type_I64{},
+			},
+		}
+	case types.ETReal:
+		outputType = &substraitgo.Type{
+			Kind: &substraitgo.Type_Fp64{
+				Fp64: &substraitgo.Type_FP64{},
+			},
+		}
+	default:
+		return nil, errors.Errorf("no suitable return type for this agg")
+	}
+	return outputType, nil
+}
+
+func sigNameAdjustor(name string) string {
+	switch name {
+	case "plus":
+		return "plus:opt_"
+	case "multiply":
+		return "multiply:opt_"
+	case "minus":
+		return "minus:opt_"
+	default:
+		return name + ":"
+	}
+}
+
+func (h *SubstraitHandler) aggFuncToSubstraitgoExpr(agg *aggregation.AggFuncDesc) (aggPB *substraitgo.AggregateFunction, err error) {
+	if agg.Name != "sum" {
+		return nil, errors.Errorf("only support sum agg")
+	}
+	if _, ok := agg.Args[0].(*expression.Column); !ok {
+		return nil, errors.Errorf("not support non-column agg arg")
+	}
+	funcSig := "sum:opt_" + getSubStraitType(agg.Args[0].GetType().GetType())
+	outType, err := evalTypeToSSPBType(agg.RetTp.EvalType())
+	if err != nil {
+		return nil, err
+	}
+	sExpr := &substraitgo.AggregateFunction{
+		FunctionReference: h.insertSig(funcSig),
+		Arguments:         getSubstraitPBFunctionArguments([]int32{int32(agg.Args[0].(*expression.Column).Index)}),
+		OutputType:        outType,
+		// without inter phrase.
+		Phase: substraitgo.AggregationPhase_AGGREGATION_PHASE_INITIAL_TO_RESULT,
+		// Sorts: inside group, no sorting now.
+		// Invocation: not distinct default
+	}
+	return sExpr, nil
+}
+
+func (p *PhysicalStreamAgg) ToSubstraitPB(ctx sessionctx.Context, ssHandler *SubstraitHandler) (*substraitgo.Rel, error) {
+	childRel, err := p.children[0].ToSubstraitPB(ctx, ssHandler)
+	if err != nil {
+		return nil, err
+	}
+	sspb := &substraitgo.Rel_Aggregate{
+		Aggregate: &substraitgo.AggregateRel{
+			Common: &substraitgo.RelCommon{
+				EmitKind: &substraitgo.RelCommon_Direct_{
+					Direct: &substraitgo.RelCommon_Direct{},
+				},
+			},
+			Input: childRel,
+		},
+	}
+	// groupings
+	ssGroupings := make([]*substraitgo.AggregateRel_Grouping, 0, len(p.GroupByItems))
+	for _, byItem := range p.GroupByItems {
+		sspb4Expr, err := ssHandler.buildSubstraitProjExpression([]expression.Expression{byItem})
+		if err != nil {
+			return nil, err
+		}
+		ssGroupings = append(ssGroupings, &substraitgo.AggregateRel_Grouping{GroupingExpressions: sspb4Expr})
+	}
+
+	sspb.Aggregate.Groupings = ssGroupings
+
+	// aggregations
+	ssAggs := make([]*substraitgo.AggregateRel_Measure, 0, len(p.AggFuncs))
+	for _, agg := range p.AggFuncs {
+		aggPB, err := ssHandler.aggFuncToSubstraitgoExpr(agg)
+		if err != nil {
+			return nil, err
+		}
+		ssAggs = append(ssAggs, &substraitgo.AggregateRel_Measure{Measure: aggPB})
+	}
+
+	sspb.Aggregate.Measures = ssAggs
+	return &substraitgo.Rel{
+		RelType: sspb,
+	}, nil
+}
+
 // ToPB implements PhysicalPlan ToPB interface.
 func (p *PhysicalStreamAgg) ToPB(ctx sessionctx.Context, storeType kv.StoreType) (*tipb.Executor, error) {
 	sc := ctx.GetSessionVars().StmtCtx
@@ -233,7 +333,7 @@ func (h *SubstraitHandler) scalarFuncToSubstraitgoExpr(sf *expression.ScalarFunc
 		}
 		offsets = append(offsets, int32(col.Index))
 	}
-	funcSig = funcSig + ":" + getSubStraitType(sf.GetArgs()[0].GetType().GetType()) + "_" + getSubStraitType(sf.GetArgs()[1].GetType().GetType())
+	funcSig = sigNameAdjustor(funcSig) + getSubStraitType(sf.GetArgs()[0].GetType().GetType()) + "_" + getSubStraitType(sf.GetArgs()[1].GetType().GetType())
 
 	sExpr := &substraitgo.Expression{
 		RexType: &substraitgo.Expression_ScalarFunction_{
