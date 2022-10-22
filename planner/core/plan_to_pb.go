@@ -223,6 +223,19 @@ func scalarFuncFieldTypeToSubstraitOutputType(sf *expression.ScalarFunction) (ou
 	return
 }
 
+func sigNameAdjustor(name string) string {
+	switch name {
+	case "plus":
+		return "plus:opt_"
+	case "multiply":
+		return "multiply:opt_"
+	case "minus":
+		return "minus:opt_"
+	default:
+		return name + ":"
+	}
+}
+
 func (h *SubstraitHandler) scalarFuncToSubstraitgoExpr(sf *expression.ScalarFunction) (*substraitgo.Expression, error) {
 	funcSig := tiDBFuncNameToVeloxFuncName[sf.FuncName.L]
 	var offsets []int32
@@ -233,7 +246,7 @@ func (h *SubstraitHandler) scalarFuncToSubstraitgoExpr(sf *expression.ScalarFunc
 		}
 		offsets = append(offsets, int32(col.Index))
 	}
-	funcSig = funcSig + ":" + getSubStraitType(sf.GetArgs()[0].GetType().GetType()) + "_" + getSubStraitType(sf.GetArgs()[1].GetType().GetType())
+	funcSig = sigNameAdjustor(funcSig) + getSubStraitType(sf.GetArgs()[0].GetType().GetType()) + "_" + getSubStraitType(sf.GetArgs()[1].GetType().GetType())
 
 	sExpr := &substraitgo.Expression{
 		RexType: &substraitgo.Expression_ScalarFunction_{
