@@ -36,15 +36,17 @@ func FetchVeloxOutput(ctx VeloxQueryCtx, types []*types.FieldType, chk *chunk.Ch
 	C.fetch_velox_output(C.CGoTiDBQueryCtx(ctx), &cols, &col_num)
 	fmt.Println("gjt C.fetch_velox_output done. col_num: %d", col_num)
 
+	var forSizeOfTiDBColumn C.TiDBColumn
 	for i := 0; i < int(col_num); i++ {
 		fmt.Println("handling col ", i, types[i].GetType())
-		realCol := *(*C.TiDBColumn)(unsafe.Pointer(uintptr(unsafe.Pointer(cols)) + uintptr(i) * unsafe.Sizeof(cols)))
-		if types[i].GetType() == mysql.TypeLong {
-			var forSizeOf int32
+		realCol := *(*C.TiDBColumn)(unsafe.Pointer(uintptr(unsafe.Pointer(cols)) + uintptr(i) * unsafe.Sizeof(forSizeOfTiDBColumn)))
+		if types[i].GetType() == mysql.TypeLong || types[i].GetType() == mysql.TypeLonglong {
+			var forSizeOf int64
 			for j := 0; j < int(realCol.length); j++ {
-				chk.AppendInt64(i, int64(*(*int32)(unsafe.Pointer(uintptr(unsafe.Pointer(realCol.data)) + uintptr(j) * unsafe.Sizeof(forSizeOf)))))
+				off := uintptr(j) * unsafe.Sizeof(forSizeOf)
+				startPtr := unsafe.Pointer(realCol.data)
+				chk.AppendInt64(i, int64(*((*int64)(unsafe.Pointer(uintptr(startPtr) + off)))))
 			}
-		} else if types[i].GetType() == mysql.TypeLonglong {
 		} else if types[i].GetType() == mysql.TypeFloat {
 		} else if types[i].GetType() == mysql.TypeDouble {
 		} else {
