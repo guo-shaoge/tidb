@@ -333,6 +333,8 @@ type StatementContext struct {
 
 	// gjt todo: 
 	VeloxQueryCtx unsafe.Pointer
+
+	UseVelox bool
 }
 
 // StmtHints are SessionVars related sql hints.

@@ -22,7 +22,6 @@ import (
 	"github.com/pingcap/tidb/executor/tidb_velox_wrapper"
 	"github.com/pingcap/tidb/util/chunk"
 	"github.com/pingcap/tidb/util/logutil"
-	"github.com/pingcap/tidb/types"
 )
 
 var _ Executor = &VeloxExec{}
@@ -81,9 +80,6 @@ type veloxWorker struct {
 	workerWg *sync.WaitGroup
 	veloxQueryCtx tidb_velox_wrapper.VeloxQueryCtx
 
-	// For convert Chunk to VeloxVector.
-	retFieldTypes []*types.FieldType
-
 	ve *VeloxExec
 }
 
@@ -100,7 +96,6 @@ func (e *VeloxExec) startWorkers(ctx context.Context) {
 			veloxDS:     ds,
 			workerWg:    e.workerWg,
 			veloxQueryCtx: e.veloxQueryCtx,
-			retFieldTypes: e.base().retFieldTypes,
 			// gjt todo: check why velox not stop.
 			ve: e,
 		}
@@ -128,7 +123,7 @@ func (w *veloxWorker) run(ctx context.Context) {
 		// arrow := chunkConvertor.convertToArrow(req)
 		// may block. gjt todo: how to cancel
 		// w.veloxDS.Enqueue(w.veloxQueryCtx, arrow)
-		w.veloxDS.EnqueueTiDBChunk(w.veloxQueryCtx, req, w.retFieldTypes)
+		w.veloxDS.EnqueueTiDBChunk(w.veloxQueryCtx, req, w.tableReader.base().retFieldTypes)
 	}
 	w.workerWg.Done()
 }

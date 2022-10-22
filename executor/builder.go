@@ -162,7 +162,8 @@ func (b *MockExecutorBuilder) Build(p plannercore.Plan) Executor {
 }
 
 func (b *executorBuilder) build(p plannercore.Plan) Executor {
-	if b.ctx.GetSessionVars().InRestrictedSQL {
+	// if b.ctx.GetSessionVars().InRestrictedSQL {
+  	if !b.ctx.GetSessionVars().StmtCtx.UseVelox {
 		return b.buildWithInternalSQL(p)
 	}
 	return b.buildWithVelox(p)
@@ -432,8 +433,8 @@ func (b *executorBuilder) buildWithVelox(p plannercore.Plan) Executor {
 	case *plannercore.PhysicalStreamAgg:
 		return b.buildStreamAgg(v)
 	case *plannercore.PhysicalProjection:
-		// return b.buildProjectionVelox(v)
-		return b.buildProjection(v)
+		return b.buildProjectionVelox(v)
+		// return b.buildProjection(v)
 	case *plannercore.PhysicalMemTable:
 		return b.buildMemTable(v)
 	case *plannercore.PhysicalTableDual:
@@ -489,13 +490,17 @@ func (b *executorBuilder) buildWithVelox(p plannercore.Plan) Executor {
 }
 
 func (b *executorBuilder) buildProjectionVelox(v *plannercore.PhysicalProjection) Executor {
-	return b.build(v.Children()[0])
+	// return b.build(v.Children()[0])
+	// proj := b.buildProjection(v)
+	b.build(v.Children()[0])
+	b.veloxExec.baseExecutor = newBaseExecutor(b.ctx, v.Schema(), v.ID() + 100)
+	return b.veloxExec
 }
 
 func (b *executorBuilder) buildTableReaderVelox(v *plannercore.PhysicalTableReader) Executor {
 	if b.veloxExec == nil {
 		b.veloxExec = &VeloxExec{
-			baseExecutor: newBaseExecutor(b.ctx, v.Schema(), v.ID()),
+			baseExecutor: newBaseExecutor(b.ctx, v.Schema(), v.ID() + 100),
 			veloxQueryCtx: tidb_velox_wrapper.VeloxQueryCtx(b.ctx.GetSessionVars().StmtCtx.VeloxQueryCtx),
 			workerWg: &sync.WaitGroup{},
 		}

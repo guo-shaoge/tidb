@@ -16,8 +16,8 @@ package executor
 
 import (
 	"context"
-	"fmt"
 	"math"
+	"fmt"
 	"runtime/pprof"
 	"runtime/trace"
 	"strconv"
@@ -2120,6 +2120,9 @@ func ResetContextOfStmt(ctx sessionctx.Context, s ast.StmtNode) (err error) {
 	}
 
 	sc.TblInfo2UnionScan = make(map[*model.TableInfo]bool)
+	if strings.Contains(sc.OriginalSQL, "use_velox") {
+		sc.UseVelox = true
+	}
 	errCount, warnCount := vars.StmtCtx.NumErrorWarnings()
 	vars.SysErrorCount = errCount
 	vars.SysWarningCount = warnCount

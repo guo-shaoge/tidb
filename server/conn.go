@@ -1852,6 +1852,10 @@ func (cc *clientConn) handleQuery(ctx context.Context, sql string) (err error) {
 	sc := cc.ctx.GetSessionVars().StmtCtx
 	prevWarns := sc.GetWarnings()
 	var stmts []ast.StmtNode
+	// in ResetContextOfStmt
+	// if strings.Contains(sql, "use_velox") {
+	// 	cc.ctx.GetSessionVars().StmtCtx.UseVelox = true
+	// }
 	if stmts, err = cc.ctx.Parse(ctx, sql); err != nil {
 		return err
 	}
@@ -2181,6 +2185,7 @@ func (cc *clientConn) handleFieldList(ctx context.Context, sql string) (err erro
 // TiFlash is down.
 func (cc *clientConn) writeResultset(ctx context.Context, rs ResultSet, binary bool, serverStatus uint16, fetchSize int) (retryable bool, runErr error) {
 	defer func() {
+		cc.ctx.GetSessionVars().StmtCtx.UseVelox = false
 		// close ResultSet when cursor doesn't exist
 		r := recover()
 		if r == nil {
