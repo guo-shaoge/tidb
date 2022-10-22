@@ -486,7 +486,7 @@ func (a *ExecStmt) Exec(ctx context.Context) (_ sqlexec.RecordSet, err error) {
 	if sctx.GetSessionVars().StmtCtx.HasMemQuotaHint {
 		sctx.GetSessionVars().StmtCtx.MemTracker.SetBytesLimit(sctx.GetSessionVars().StmtCtx.MemQuotaQuery)
 	}
-	if pp, ok := a.Plan.(plannercore.PhysicalPlan); ok && !sctx.GetSessionVars().InRestrictedSQL {
+	if pp, ok := a.Plan.(plannercore.PhysicalPlan); ok && sctx.GetSessionVars().StmtCtx.UseVelox {
 		ssHandler := plannercore.NewSubstraitHandler()
 		rel, err := pp.ToSubstraitPB(sctx, ssHandler)
 		if rel != nil && err == nil && sctx.GetSessionVars().ConnectionID != 0 {

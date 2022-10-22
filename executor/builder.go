@@ -273,7 +273,8 @@ func (b *executorBuilder) buildWithInternalSQL(p plannercore.Plan) Executor {
 	case *plannercore.PhysicalHashAgg:
 		return b.buildHashAgg(v)
 	case *plannercore.PhysicalStreamAgg:
-		return b.buildStreamAgg(v)
+		return b.buildStreamAggWithVelox(v)
+		// return b.buildStreamAgg(v)
 	case *plannercore.PhysicalProjection:
 		return b.buildProjection(v)
 	case *plannercore.PhysicalMemTable:
@@ -429,7 +430,8 @@ func (b *executorBuilder) buildWithVelox(p plannercore.Plan) Executor {
 	case *plannercore.PhysicalSelection:
 		return b.buildSelection(v)
 	case *plannercore.PhysicalHashAgg:
-		return b.buildHashAgg(v)
+		return b.buildHashAggWithVelox(v)
+		// return b.buildHashAgg(v)
 	case *plannercore.PhysicalStreamAgg:
 		return b.buildStreamAgg(v)
 	case *plannercore.PhysicalProjection:
@@ -487,6 +489,17 @@ func (b *executorBuilder) buildWithVelox(p plannercore.Plan) Executor {
 		b.err = ErrUnknownPlan.GenWithStack("Unknown Plan %T", p)
 		return nil
 	}
+}
+
+func (b *executorBuilder) buildStreamAggWithVelox(v *plannercore.PhysicalStreamAgg) Executor {
+	b.build(v.Children()[0])
+	b.veloxExec.baseExecutor = newBaseExecutor(b.ctx, v.Schema(), v.ID() + 100)
+	return b.veloxExec
+}
+func (b *executorBuilder) buildHashAggWithVelox(v *plannercore.PhysicalHashAgg) Executor {
+	b.build(v.Children()[0])
+	b.veloxExec.baseExecutor = newBaseExecutor(b.ctx, v.Schema(), v.ID() + 100)
+	return b.veloxExec
 }
 
 func (b *executorBuilder) buildProjectionVelox(v *plannercore.PhysicalProjection) Executor {
