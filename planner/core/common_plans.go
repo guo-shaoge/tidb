@@ -789,8 +789,19 @@ func (e *Explain) explainFlatOpInRowFormat(flatOp *FlatOperator) {
 	if flatOp.IsRoot {
 		taskTp = "root"
 	} else {
-		taskTp = flatOp.ReqType.Name() + "[" + flatOp.StoreType.Name() + "]"
+		taskTp = flatOp.ReqType.Name()
 	}
+
+	if !flatOp.NotVelox {
+		taskTp += "[velox]"
+	} else {
+		if flatOp.IsRoot {
+			taskTp += "[tidb]"
+		} else {
+			taskTp += "[" + flatOp.StoreType.Name() + "]"
+		}
+	}
+
 	textTreeExplainID := texttree.PrettyIdentifier(flatOp.Origin.ExplainID().String()+flatOp.Label.String(),
 		flatOp.TextTreeIndent,
 		flatOp.IsLastChild)

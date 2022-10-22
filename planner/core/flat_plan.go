@@ -99,6 +99,7 @@ type FlatOperator struct {
 	Depth     uint32
 	Label     OperatorLabel
 	IsRoot    bool
+	NotVelox  bool
 	StoreType kv.StoreType
 	// ReqType is only meaningful when IsRoot is false.
 	ReqType ReadReqType
@@ -147,6 +148,7 @@ type operatorCtx struct {
 	depth       uint32
 	label       OperatorLabel
 	isRoot      bool
+	notVelox    bool
 	storeType   kv.StoreType
 	reqType     ReadReqType
 	indent      string
@@ -198,6 +200,7 @@ func (f *FlatPhysicalPlan) flattenSingle(p Plan, info *operatorCtx) *FlatOperato
 		Origin:         p,
 		Label:          info.label,
 		IsRoot:         info.isRoot,
+		NotVelox:       info.notVelox,
 		StoreType:      info.storeType,
 		Depth:          info.depth,
 		ReqType:        info.reqType,
@@ -213,6 +216,11 @@ func (f *FlatPhysicalPlan) flattenSingle(p Plan, info *operatorCtx) *FlatOperato
 
 // Note that info should not be modified in this method.
 func (f *FlatPhysicalPlan) flattenRecursively(p Plan, info *operatorCtx, target FlatPlanTree) (res FlatPlanTree, idx int) {
+	switch p.(type) {
+	case *PhysicalTableReader, *PhysicalIndexReader, *PhysicalIndexLookUpReader,
+		*PhysicalTableScan, *PhysicalIndexScan:
+		info.notVelox = true
+	}
 	idx = -1
 	flat := f.flattenSingle(p, info)
 	if flat != nil {
