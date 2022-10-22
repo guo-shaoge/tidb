@@ -41,7 +41,6 @@ import (
 	"github.com/pingcap/tidb/util/plancodec"
 	"github.com/pingcap/tidb/util/size"
 	"github.com/pingcap/tidb/util/texttree"
-	"github.com/pingcap/tipb/go-tipb"
 )
 
 var planCacheCounter = metrics.PlanCacheCounter.WithLabelValues("prepare")
@@ -786,19 +785,27 @@ func (e *Explain) explainFlatPlanInRowFormat(flat *FlatPhysicalPlan) {
 
 func (e *Explain) explainFlatOpInRowFormat(flatOp *FlatOperator) {
 	taskTp := ""
-	if flatOp.IsRoot {
-		taskTp = "root"
-	} else {
-		taskTp = flatOp.ReqType.Name()
-	}
+	if e.ctx.GetSessionVars().StmtCtx.UseVelox {
+		if flatOp.IsRoot {
+			taskTp = "root"
+		} else {
+			taskTp = flatOp.ReqType.Name()
+		}
 
-	if !flatOp.NotVelox {
-		taskTp += "[velox]"
+		if !flatOp.NotVelox {
+			taskTp += "[velox]"
+		} else {
+			if flatOp.IsRoot {
+				taskTp += "[tidb]"
+			} else {
+				taskTp += "[" + flatOp.StoreType.Name() + "]"
+			}
+		}
 	} else {
 		if flatOp.IsRoot {
-			taskTp += "[tidb]"
+			taskTp = "root"
 		} else {
-			taskTp += "[" + flatOp.StoreType.Name() + "]"
+			taskTp = flatOp.ReqType.Name() + "[" + flatOp.StoreType.Name() + "]"
 		}
 	}
 
