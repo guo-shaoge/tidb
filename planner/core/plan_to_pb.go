@@ -195,6 +195,26 @@ func (h *SubstraitHandler) getSigID(sigName string) uint32 {
 	return h.SigMap[sigName]
 }
 
+func evalTypeToSSPBType(evalType types.EvalType) (outputType *substraitgo.Type, err error) {
+	switch evalType {
+	case types.ETInt:
+		outputType = &substraitgo.Type{
+			Kind: &substraitgo.Type_I64_{
+				I64: &substraitgo.Type_I64{},
+			},
+		}
+	case types.ETReal:
+		outputType = &substraitgo.Type{
+			Kind: &substraitgo.Type_Fp64{
+				Fp64: &substraitgo.Type_FP64{},
+			},
+		}
+	default:
+		return nil, errors.Errorf("no suitable return type for this agg")
+	}
+	return outputType, nil
+}
+
 func scalarFuncFieldTypeToSubstraitOutputType(sf *expression.ScalarFunction) (outputType *substraitgo.Type) {
 	switch sf.GetType().EvalType() {
 	case types.ETInt:
@@ -234,6 +254,30 @@ func sigNameAdjustor(name string) string {
 	default:
 		return name + ":"
 	}
+}
+
+func (h *SubstraitHandler) aggFuncToSubstraitgoExpr(agg *aggregation.AggFuncDesc) (aggPB *substraitgo.AggregateFunction, err error) {
+	if agg.Name != "sum" {
+		return nil, errors.Errorf("only support sum agg")
+	}
+	if _, ok := agg.Args[0].(*expression.Column); ok {
+		return nil, errors.Errorf("not support non-column agg arg")
+	}
+	funcSig := "sum:opt_" + getSubStraitType(agg.Args[0].GetType().GetType())
+	outType, err := evalTypeToSSPBType(agg.RetTp.EvalType())
+	if err != nil {
+		return nil, err
+	}
+	sExpr := &substraitgo.AggregateFunction{
+		FunctionReference: h.insertSig(funcSig),
+		Arguments:         getSubstraitPBFunctionArguments([]int32{int32(agg.Args[0].(*expression.Column).Index)}),
+		OutputType:        outType,
+		// without inter phrase.
+		Phase: substraitgo.AggregationPhase_AGGREGATION_PHASE_INITIAL_TO_RESULT,
+		// Sorts: inside group, no sorting now.
+		// Invocation: not distinct default
+	}
+	return sExpr, nil
 }
 
 func (h *SubstraitHandler) scalarFuncToSubstraitgoExpr(sf *expression.ScalarFunction) (*substraitgo.Expression, error) {

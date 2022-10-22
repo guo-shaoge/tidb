@@ -16,6 +16,7 @@ package core
 
 import (
 	"fmt"
+	substraitgo "github.com/AilinKid/substrait-go/proto"
 	"strconv"
 	"unsafe"
 
@@ -1769,6 +1770,47 @@ func NewPhysicalHashAgg(la *LogicalAggregation, newStats *property.StatsInfo, pr
 // PhysicalStreamAgg is stream operator of aggregate.
 type PhysicalStreamAgg struct {
 	basePhysicalAgg
+}
+
+func (p *PhysicalStreamAgg) ToSubstraitPB(ctx sessionctx.Context, ssHandler *SubstraitHandler) (*substraitgo.Rel, error) {
+	childRel, err := p.children[0].ToSubstraitPB(ctx, ssHandler)
+	if err != nil {
+		return nil, err
+	}
+	sspb := &substraitgo.Rel_Aggregate{
+		Aggregate: &substraitgo.AggregateRel{
+			Common: &substraitgo.RelCommon{
+				EmitKind: &substraitgo.RelCommon_Direct_{
+					Direct: &substraitgo.RelCommon_Direct{},
+				},
+			},
+			Input: childRel,
+		},
+	}
+	// groupings
+	ssGroupings := make([]*substraitgo.AggregateRel_Grouping, 0, len(p.GroupByItems))
+	for _, byItem := range p.GroupByItems {
+		sspb4Expr, err := ssHandler.buildSubstraitProjExpression([]expression.Expression{byItem})
+		if err != nil {
+			return nil, err
+		}
+		ssGroupings = append(ssGroupings, &substraitgo.AggregateRel_Grouping{GroupingExpressions: sspb4Expr})
+	}
+	sspb.Aggregate.Groupings = ssGroupings
+
+	// aggregations
+	ssAggs := make([]*substraitgo.AggregateRel_Measure, 0, len(p.AggFuncs))
+	for _, agg := range p.AggFuncs {
+		aggPB, err := ssHandler.aggFuncToSubstraitgoExpr(agg)
+		if err != nil {
+			return nil, err
+		}
+		ssAggs = append(ssAggs, &substraitgo.AggregateRel_Measure{Measure: aggPB})
+	}
+	sspb.Aggregate.Measures = ssAggs
+	return &substraitgo.Rel{
+		RelType: sspb,
+	}, nil
 }
 
 // Clone implements PhysicalPlan interface.
