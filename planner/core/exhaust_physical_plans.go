@@ -2877,16 +2877,15 @@ func (la *LogicalAggregation) exhaustPhysicalPlans(prop *property.PhysicalProper
 
 	preferHash, preferStream := la.ResetHintIfConflicted()
 
-	//hashAggs := la.getHashAggs(prop)
-	//if hashAggs != nil && preferHash {
-	//	return hashAggs, true, nil
-	//}
-
 	streamAggs := la.getStreamAggs(prop)
-	if streamAggs != nil && preferStream {
+	if streamAggs != nil {
 		return streamAggs, true, nil
 	}
 
+	hashAggs := la.getHashAggs(prop)
+	if hashAggs != nil {
+		return hashAggs, true, nil
+	}
 
 	aggs := streamAggs
 
