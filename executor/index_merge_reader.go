@@ -281,13 +281,13 @@ func (e *IndexMergeReaderExecutor) startPartialIndexWorker(ctx context.Context, 
 		e.dagPBs[workID].CollectExecutionSummaries = &collExec
 	}
 
-	var keyRanges [][]kv.KeyRange
+	keyRanges := make(map[int][]kv.KeyRange)
 	if e.partitionTableMode {
-		for _, pKeyRanges := range e.partitionKeyRanges { // get all keyRanges related to this PartialIndex
-			keyRanges = append(keyRanges, pKeyRanges[workID])
+		for parTblIdx, pKeyRanges := range e.partitionKeyRanges { // get all keyRanges related to this PartialIndex
+			keyRanges[parTblIdx] = pKeyRanges[workID]
 		}
 	} else {
-		keyRanges = [][]kv.KeyRange{e.keyRanges[workID]}
+		keyRanges[0] = e.keyRanges[workID]
 	}
 
 	failpoint.Inject("startPartialIndexWorkerErr", func() error {
@@ -388,13 +388,13 @@ func (e *IndexMergeReaderExecutor) startPartialIndexWorker(ctx context.Context, 
 func (e *IndexMergeReaderExecutor) startPartialTableWorker(ctx context.Context, exitCh <-chan struct{}, fetchCh chan<- *indexMergeTableTask, workID int) error {
 	ts := e.partialPlans[workID][0].(*plannercore.PhysicalTableScan)
 
-	tbls := make([]table.Table, 0, 1)
+	tbls := make(map[int]table.Table)
 	if e.partitionTableMode {
-		for _, p := range e.prunedPartitions {
-			tbls = append(tbls, p)
+		for parTblIdx, p := range e.prunedPartitions {
+			tbls[parTblIdx] = p
 		}
 	} else {
-		tbls = append(tbls, e.table)
+		tbls[0] = e.table
 	}
 
 	go func() {
