@@ -808,10 +808,7 @@ type intersectionProcessWorker struct {
 
 func (w *intersectionProcessWorker) doIntersectionPerPartition() {
 	for task := range w.workerCh {
-		handles := w.handleMapsPerWorker[task.parTblIdx][task.workerID]
-		for _, h := range task.handles {
-			handles = append(handles, h)
-		}
+		w.handleMapsPerWorker[task.parTblIdx][task.workerID] = append(w.handleMapsPerWorker[task.parTblIdx][task.workerID], task.handles...)
 	}
 	// Sort
 	for _, partSlices := range w.handleMapsPerWorker {
@@ -845,9 +842,9 @@ func (w *intersectionProcessWorker) doIntersectionPerPartition() {
 			// advance
 			var gotCnt int
 			for workerID, handles := range partSlices {
-				idxs[workerID]++
 				if min.Equal(handles[idxs[workerID]]) {
 					gotCnt++
+					idxs[workerID]++
 				}
 			}
 			if gotCnt == len(partSlices) {
@@ -902,6 +899,9 @@ func (w *indexMergeProcessWorker) fetchLoopIntersection(ctx context.Context, fet
 		handleMapsPerWorker := make(map[int][][]kv.Handle, partCntPerWorker)
 		for j := 0; j < partCntPerWorker; j++ {
 			allWorkerHandles := make([][]kv.Handle, len(w.indexMerge.partialPlans))
+			for i, _ := range allWorkerHandles {
+				allWorkerHandles[i] = make([]kv.Handle, 0, 8)
+			}
 			parTblIdx := i*partCntPerWorker + j
 			handleMapsPerWorker[parTblIdx] = allWorkerHandles
 		}
