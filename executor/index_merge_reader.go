@@ -18,12 +18,12 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"reflect"
 	"runtime/trace"
 	"sync"
 	"sync/atomic"
 	"time"
 	"unsafe"
+	"sort"
 
 	"github.com/pingcap/errors"
 	"github.com/pingcap/failpoint"
@@ -128,6 +128,7 @@ type indexMergeTableTask struct {
 	lookupTableTask
 
 	// parTblIdx are only used in indexMergeProcessWorker.fetchLoopIntersection.
+	workerID int
 	parTblIdx int
 }
 
@@ -306,6 +307,7 @@ func (e *IndexMergeReaderExecutor) startPartialIndexWorker(ctx context.Context, 
 					batchSize:    e.maxChunkSize,
 					maxBatchSize: e.ctx.GetSessionVars().IndexLookupSize,
 					maxChunkSize: e.maxChunkSize,
+					workerID: workID,
 				}
 
 				if e.isCorColInPartialFilters[workID] {
@@ -423,6 +425,7 @@ func (e *IndexMergeReaderExecutor) startPartialTableWorker(ctx context.Context, 
 					maxBatchSize: e.ctx.GetSessionVars().IndexLookupSize,
 					maxChunkSize: e.maxChunkSize,
 					tableReader:  partialTableReader,
+					workerID: workID,
 				}
 
 				if e.isCorColInPartialFilters[workID] {
@@ -511,6 +514,7 @@ type partialTableWorker struct {
 	maxChunkSize int
 	tableReader  Executor
 	partition    table.PhysicalTable // it indicates if this worker is accessing a particular partition table
+	workerID int
 }
 
 func (w *partialTableWorker) fetchHandles(ctx context.Context, exitCh <-chan struct{}, fetchCh chan<- *indexMergeTableTask, resultCh chan<- *indexMergeTableTask,
@@ -585,6 +589,7 @@ func (w *partialTableWorker) buildTableTask(handles []kv.Handle, retChk *chunk.C
 
 			partitionTable: w.partition,
 		},
+		workerID: w.workerID,
 		parTblIdx: parTblIdx,
 	}
 
@@ -792,32 +797,62 @@ func (w *indexMergeProcessWorker) fetchLoopUnion(ctx context.Context, fetchCh <-
 type intersectionProcessWorker struct {
 	workerID int
 	// key: parTblIdx, val: HandleMap
-	handleMapsPerWorker map[int]*kv.HandleMap
+	handleMapsPerWorker map[int][][]kv.Handle
 	workerCh            chan *indexMergeTableTask
 	indexMerge          *IndexMergeReaderExecutor
 	wg                  *sync.WaitGroup
 	memTracker          *memory.Tracker
+
+	intersected map[int][]kv.Handle
 }
 
 func (w *intersectionProcessWorker) doIntersectionPerPartition() {
 	for task := range w.workerCh {
-		var ok bool
-		var hMap *kv.HandleMap
-		if hMap, ok = w.handleMapsPerWorker[task.parTblIdx]; !ok {
-			panic(fmt.Sprintf("cannot find parTblIdx(%d) for worker(id: %d)", task.parTblIdx, w.workerID))
-		}
-		var deltaRows int64
+		handles := w.handleMapsPerWorker[task.parTblIdx][task.workerID]
 		for _, h := range task.handles {
-			if cntPtr, ok := hMap.Get(h); ok {
-				(*cntPtr.(*int))++
-			} else {
-				cnt := 1
-				hMap.Set(h, &cnt)
-				deltaRows++
-			}
+			handles = append(handles, h)
 		}
-		if deltaRows > 0 {
-			w.memTracker.Consume(deltaRows * (8 + int64(unsafe.Sizeof(reflect.Pointer))))
+	}
+	// Sort
+	for _, partSlices := range w.handleMapsPerWorker {
+		for _, workerSlice := range partSlices {
+			sort.Slice(workerSlice, func(i, j int) bool {
+				return workerSlice[i].Compare(workerSlice[j]) < 0
+			})
+		}
+	}
+	// Merge
+	for parTblIdx, partSlices := range w.handleMapsPerWorker {
+		idxs := make([]int, len(partSlices))
+		var done bool
+		for {
+			for workerID, handles := range partSlices {
+				if idxs[workerID] >= len(handles) {
+					done = true
+					break
+				}
+			}
+			if done {
+				break
+			}
+			// get min
+			min := partSlices[0][idxs[0]]
+			for workerID, handles := range partSlices {
+				if min.Compare(handles[idxs[workerID]]) > 0 {
+					min = handles[idxs[workerID]]
+				}
+			}
+			// advance
+			var gotCnt int
+			for workerID, handles := range partSlices {
+				idxs[workerID]++
+				if min.Equal(handles[idxs[workerID]]) {
+					gotCnt++
+				}
+			}
+			if gotCnt == len(partSlices) {
+				w.intersected[parTblIdx] = append(w.intersected[parTblIdx], min)
+			}
 		}
 	}
 	w.wg.Done()
@@ -861,16 +896,14 @@ func (w *indexMergeProcessWorker) fetchLoopIntersection(ctx context.Context, fet
 			panic(fmt.Sprintf("unexpected workerCnt, expect %d, got %d", con, workerCnt))
 		}
 	})
-	handleMaps := make([]*kv.HandleMap, 0, partCnt)
 	workers := make([]*intersectionProcessWorker, 0, workerCnt)
 	wg := sync.WaitGroup{}
 	for i := 0; i < workerCnt; i++ {
-		handleMapsPerWorker := make(map[int]*kv.HandleMap, partCntPerWorker)
+		handleMapsPerWorker := make(map[int][][]kv.Handle, partCntPerWorker)
 		for j := 0; j < partCntPerWorker; j++ {
-			hMap := kv.NewHandleMap()
-			handleMaps = append(handleMaps, hMap)
+			allWorkerHandles := make([][]kv.Handle, len(w.indexMerge.partialPlans))
 			parTblIdx := i*partCntPerWorker + j
-			handleMapsPerWorker[parTblIdx] = hMap
+			handleMapsPerWorker[parTblIdx] = allWorkerHandles
 		}
 		workers = append(workers, &intersectionProcessWorker{
 			workerID:            i,
@@ -879,6 +912,7 @@ func (w *indexMergeProcessWorker) fetchLoopIntersection(ctx context.Context, fet
 			indexMerge:          w.indexMerge,
 			wg:                  &wg,
 			memTracker:          w.indexMerge.memTracker,
+			intersected: make(map[int][]kv.Handle),
 		})
 		go workers[i].doIntersectionPerPartition()
 		wg.Add(1)
@@ -890,35 +924,19 @@ func (w *indexMergeProcessWorker) fetchLoopIntersection(ctx context.Context, fet
 		close(processWorker.workerCh)
 	}
 	wg.Wait()
-	defer func() {
-		for _, hMap := range handleMaps {
-			w.indexMerge.memTracker.Consume(-(int64(hMap.Len()) * (8 + int64(unsafe.Sizeof(reflect.Pointer)))))
-		}
-	}()
 
-	intersected := make([][]kv.Handle, partCnt)
-	for parTblIdx, hMap := range handleMaps {
-		hMap.Range(func(h kv.Handle, val interface{}) bool {
-			if *(val.(*int)) == len(w.indexMerge.partialPlans) {
-				// Means all partial paths have this handle.
-				intersected[parTblIdx] = append(intersected[parTblIdx], h)
-			}
-			return true
-		})
-	}
 	tasks := make([]*indexMergeTableTask, 0, partCnt)
-	for parTblIdx := 0; parTblIdx < partCnt; parTblIdx++ {
-		if len(intersected[parTblIdx]) == 0 {
-			continue
-		}
-		tasks = append(tasks, &indexMergeTableTask{
-			lookupTableTask: lookupTableTask{
-				handles: intersected[parTblIdx],
-				doneCh:  make(chan error, 1),
-			},
-		})
-		if w.indexMerge.partitionTableMode {
-			tasks[len(tasks)-1].partitionTable = w.indexMerge.prunedPartitions[parTblIdx]
+	for _, processWorker := range workers {
+		for parTblIdx, handles := range processWorker.intersected {
+			tasks = append(tasks, &indexMergeTableTask{
+				lookupTableTask: lookupTableTask{
+					handles: handles,
+					doneCh:  make(chan error, 1),
+				},
+			})
+			if w.indexMerge.partitionTableMode {
+				tasks[len(tasks)-1].partitionTable = w.indexMerge.prunedPartitions[parTblIdx]
+			}
 		}
 	}
 	for _, task := range tasks {
@@ -959,6 +977,7 @@ type partialIndexWorker struct {
 	maxBatchSize int
 	maxChunkSize int
 	partition    table.PhysicalTable // it indicates if this worker is accessing a particular partition table
+	workerID int
 }
 
 func syncErr(resultCh chan<- *indexMergeTableTask, err error) {
@@ -1056,6 +1075,7 @@ func (w *partialIndexWorker) buildTableTask(handles []kv.Handle, retChk *chunk.C
 
 			partitionTable: w.partition,
 		},
+		workerID: w.workerID,
 		parTblIdx: parTblIdx,
 	}
 
