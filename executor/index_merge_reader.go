@@ -23,7 +23,6 @@ import (
 	"sync/atomic"
 	"time"
 	"unsafe"
-	"sort"
 
 	"github.com/pingcap/errors"
 	"github.com/pingcap/failpoint"
@@ -813,8 +812,8 @@ func (w *intersectionProcessWorker) doIntersectionPerPartition() {
 	// Sort
 	for _, partSlices := range w.handleMapsPerWorker {
 		for _, workerSlice := range partSlices {
-			sort.Slice(workerSlice, func(i, j int) bool {
-				return workerSlice[i].Compare(workerSlice[j]) < 0
+			slices.SortFunc(workerSlice, func(i, j kv.Handle) bool {
+				return i.Compare(j) < 0
 			})
 		}
 	}
