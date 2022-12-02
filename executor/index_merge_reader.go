@@ -128,6 +128,9 @@ type indexMergeTableTask struct {
 
 	// parTblIdx are only used in indexMergeProcessWorker.fetchLoopIntersection.
 	parTblIdx int
+
+	memUsage   int64
+	memTracker *memory.Tracker
 }
 
 // Table implements the dataSourceExecutor interface.
@@ -303,6 +306,8 @@ func (e *IndexMergeReaderExecutor) startPartialIndexWorker(ctx context.Context, 
 		defer e.idxWorkerWg.Done()
 		util.WithRecovery(
 			func() {
+				tracker := memory.NewTracker(e.id, -1)
+				tracker.AttachTo(e.memTracker)
 				worker := &partialIndexWorker{
 					stats:        e.stats,
 					idxID:        e.getPartitalPlanID(workID),
@@ -310,6 +315,7 @@ func (e *IndexMergeReaderExecutor) startPartialIndexWorker(ctx context.Context, 
 					batchSize:    e.maxChunkSize,
 					maxBatchSize: e.ctx.GetSessionVars().IndexLookupSize,
 					maxChunkSize: e.maxChunkSize,
+					memTracker:   tracker,
 				}
 
 				if e.isCorColInPartialFilters[workID] {
@@ -420,6 +426,8 @@ func (e *IndexMergeReaderExecutor) startPartialTableWorker(ctx context.Context, 
 					netDataSize:      e.partialNetDataSizes[workID],
 				}
 
+				tracker := memory.NewTracker(e.id, -1)
+				tracker.AttachTo(e.memTracker)
 				worker := &partialTableWorker{
 					stats:        e.stats,
 					sc:           e.ctx,
@@ -427,6 +435,7 @@ func (e *IndexMergeReaderExecutor) startPartialTableWorker(ctx context.Context, 
 					maxBatchSize: e.ctx.GetSessionVars().IndexLookupSize,
 					maxChunkSize: e.maxChunkSize,
 					tableReader:  partialTableReader,
+					memTracker:   tracker,
 				}
 
 				if e.isCorColInPartialFilters[workID] {
@@ -514,6 +523,7 @@ type partialTableWorker struct {
 	maxChunkSize int
 	tableReader  Executor
 	partition    table.PhysicalTable // it indicates if this worker is accessing a particular partition table
+	memTracker   *memory.Tracker
 }
 
 func (w *partialTableWorker) fetchHandles(ctx context.Context, exitCh <-chan struct{}, fetchCh chan<- *indexMergeTableTask, resultCh chan<- *indexMergeTableTask,
@@ -525,7 +535,7 @@ func (w *partialTableWorker) fetchHandles(ctx context.Context, exitCh <-chan str
 	}
 	for {
 		start := time.Now()
-		handles, retChunk, err := w.extractTaskHandles(ctx, chk, handleCols)
+		handles, retChunk, memUsage, err := w.extractTaskHandles(ctx, chk, handleCols)
 		if err != nil {
 			syncErr(resultCh, err)
 			return count, err
@@ -534,7 +544,7 @@ func (w *partialTableWorker) fetchHandles(ctx context.Context, exitCh <-chan str
 			return count, nil
 		}
 		count += int64(len(handles))
-		task := w.buildTableTask(handles, retChunk, parTblIdx)
+		task := w.buildTableTask(handles, retChunk, parTblIdx, memUsage)
 		if w.stats != nil {
 			atomic.AddInt64(&w.stats.FetchIdxTime, int64(time.Since(start)))
 		}
@@ -554,33 +564,35 @@ func (w *partialTableWorker) fetchHandles(ctx context.Context, exitCh <-chan str
 }
 
 func (w *partialTableWorker) extractTaskHandles(ctx context.Context, chk *chunk.Chunk, handleCols plannercore.HandleCols) (
-	handles []kv.Handle, retChk *chunk.Chunk, err error) {
+	handles []kv.Handle, retChk *chunk.Chunk, memUsage int64, err error) {
 	handles = make([]kv.Handle, 0, w.batchSize)
 	for len(handles) < w.batchSize {
 		chk.SetRequiredRows(w.batchSize-len(handles), w.maxChunkSize)
 		err = errors.Trace(w.tableReader.Next(ctx, chk))
 		if err != nil {
-			return handles, nil, err
+			return handles, nil, memUsage, err
 		}
 		if chk.NumRows() == 0 {
-			return handles, retChk, nil
+			return handles, retChk, memUsage, nil
 		}
 		for i := 0; i < chk.NumRows(); i++ {
 			handle, err := handleCols.BuildHandle(chk.GetRow(i))
 			if err != nil {
-				return nil, nil, err
+				return nil, nil, memUsage, err
 			}
 			handles = append(handles, handle)
+			memUsage += int64(handle.MemUsage())
 		}
+		w.memTracker.Consume(memUsage)
 	}
 	w.batchSize *= 2
 	if w.batchSize > w.maxBatchSize {
 		w.batchSize = w.maxBatchSize
 	}
-	return handles, retChk, nil
+	return handles, retChk, memUsage, nil
 }
 
-func (w *partialTableWorker) buildTableTask(handles []kv.Handle, retChk *chunk.Chunk, parTblIdx int) *indexMergeTableTask {
+func (w *partialTableWorker) buildTableTask(handles []kv.Handle, retChk *chunk.Chunk, parTblIdx int, memUsage int64) *indexMergeTableTask {
 	task := &indexMergeTableTask{
 		lookupTableTask: lookupTableTask{
 			handles: handles,
@@ -588,7 +600,9 @@ func (w *partialTableWorker) buildTableTask(handles []kv.Handle, retChk *chunk.C
 
 			partitionTable: w.partition,
 		},
-		parTblIdx: parTblIdx,
+		parTblIdx:  parTblIdx,
+		memUsage:   memUsage,
+		memTracker: w.memTracker,
 	}
 
 	task.doneCh = make(chan error, 1)
@@ -737,7 +751,12 @@ type indexMergeProcessWorker struct {
 
 func (w *indexMergeProcessWorker) fetchLoopUnion(ctx context.Context, fetchCh <-chan *indexMergeTableTask,
 	workCh chan<- *indexMergeTableTask, resultCh chan<- *indexMergeTableTask, finished <-chan struct{}) {
+	var memUsage int64
+	tracker := memory.NewTracker(w.indexMerge.id, -1)
+	tracker.AttachTo(w.indexMerge.memTracker)
+
 	defer func() {
+		tracker.Detach()
 		close(workCh)
 		close(resultCh)
 	}()
@@ -763,9 +782,14 @@ func (w *indexMergeProcessWorker) fetchLoopUnion(ctx context.Context, fetchCh <-
 			if _, ok := hMap.Get(h); !ok {
 				fhs = append(fhs, h)
 				hMap.Set(h, true)
+				memUsage += int64(h.MemUsage())
 			}
 		}
+
+		tracker.Consume(memUsage)
+
 		if len(fhs) == 0 {
+			task.memTracker.Consume(-task.memUsage)
 			continue
 		}
 		task := &indexMergeTableTask{
@@ -787,6 +811,7 @@ func (w *indexMergeProcessWorker) fetchLoopUnion(ctx context.Context, fetchCh <-
 		case workCh <- task:
 			resultCh <- task
 		}
+		task.memTracker.Consume(-task.memUsage)
 	}
 }
 
@@ -842,6 +867,7 @@ func (w *intersectionProcessWorker) doIntersectionPerPartition(ctx context.Conte
 		if w.rowDelta >= int64(w.batchSize) {
 			w.consumeMemDelta()
 		}
+		task.memTracker.Consume(-task.memUsage)
 		failpoint.Inject("testIndexMergeIntersectionWorkerPanic", nil)
 	}
 	if w.rowDelta > 0 {
@@ -993,6 +1019,7 @@ type partialIndexWorker struct {
 	maxBatchSize int
 	maxChunkSize int
 	partition    table.PhysicalTable // it indicates if this worker is accessing a particular partition table
+	memTracker   *memory.Tracker
 }
 
 func syncErr(resultCh chan<- *indexMergeTableTask, err error) {
@@ -1023,7 +1050,7 @@ func (w *partialIndexWorker) fetchHandles(
 	}
 	for {
 		start := time.Now()
-		handles, retChunk, err := w.extractTaskHandles(ctx, chk, result, handleCols)
+		handles, retChunk, memUsage, err := w.extractTaskHandles(ctx, chk, result, handleCols)
 		if err != nil {
 			syncErr(resultCh, err)
 			return count, err
@@ -1035,7 +1062,7 @@ func (w *partialIndexWorker) fetchHandles(
 			return count, nil
 		}
 		count += int64(len(handles))
-		task := w.buildTableTask(handles, retChunk, parTblIdx)
+		task := w.buildTableTask(handles, retChunk, parTblIdx, memUsage)
 		if w.stats != nil {
 			atomic.AddInt64(&w.stats.FetchIdxTime, int64(time.Since(start)))
 		}
@@ -1055,33 +1082,35 @@ func (w *partialIndexWorker) fetchHandles(
 }
 
 func (w *partialIndexWorker) extractTaskHandles(ctx context.Context, chk *chunk.Chunk, idxResult distsql.SelectResult, handleCols plannercore.HandleCols) (
-	handles []kv.Handle, retChk *chunk.Chunk, err error) {
+	handles []kv.Handle, retChk *chunk.Chunk, memUsage int64, err error) {
 	handles = make([]kv.Handle, 0, w.batchSize)
 	for len(handles) < w.batchSize {
 		chk.SetRequiredRows(w.batchSize-len(handles), w.maxChunkSize)
 		err = errors.Trace(idxResult.Next(ctx, chk))
 		if err != nil {
-			return handles, nil, err
+			return handles, nil, memUsage, err
 		}
 		if chk.NumRows() == 0 {
-			return handles, retChk, nil
+			return handles, retChk, 0, nil
 		}
 		for i := 0; i < chk.NumRows(); i++ {
 			handle, err := handleCols.BuildHandleFromIndexRow(chk.GetRow(i))
 			if err != nil {
-				return nil, nil, err
+				return nil, nil, memUsage, err
 			}
 			handles = append(handles, handle)
+			memUsage += int64(handle.MemUsage())
 		}
+		w.memTracker.Consume(memUsage)
 	}
 	w.batchSize *= 2
 	if w.batchSize > w.maxBatchSize {
 		w.batchSize = w.maxBatchSize
 	}
-	return handles, retChk, nil
+	return handles, retChk, memUsage, nil
 }
 
-func (w *partialIndexWorker) buildTableTask(handles []kv.Handle, retChk *chunk.Chunk, parTblIdx int) *indexMergeTableTask {
+func (w *partialIndexWorker) buildTableTask(handles []kv.Handle, retChk *chunk.Chunk, parTblIdx int, memUsage int64) *indexMergeTableTask {
 	task := &indexMergeTableTask{
 		lookupTableTask: lookupTableTask{
 			handles: handles,
@@ -1089,7 +1118,9 @@ func (w *partialIndexWorker) buildTableTask(handles []kv.Handle, retChk *chunk.C
 
 			partitionTable: w.partition,
 		},
-		parTblIdx: parTblIdx,
+		parTblIdx:  parTblIdx,
+		memUsage:   memUsage,
+		memTracker: w.memTracker,
 	}
 
 	task.doneCh = make(chan error, 1)
