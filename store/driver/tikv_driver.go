@@ -173,9 +173,6 @@ func (d TiKVDriver) OpenWithOptions(path string, options ...Option) (kv.Storage,
 		if err != nil {
 			return nil, errors.Trace(err)
 		}
-		// If there's setting keyspace-name, then skipped GC worker logic.
-		// It need a group of special tidb nodes to execute GC worker logic.
-		disableGC = true
 	}
 
 	codec := pdClient.GetCodec()

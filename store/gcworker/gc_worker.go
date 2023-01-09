@@ -39,6 +39,7 @@ import (
 	"github.com/pingcap/tidb/ddl/placement"
 	"github.com/pingcap/tidb/ddl/util"
 	"github.com/pingcap/tidb/domain/infosync"
+	"github.com/pingcap/tidb/keyspace"
 	"github.com/pingcap/tidb/kv"
 	"github.com/pingcap/tidb/metrics"
 	"github.com/pingcap/tidb/parser/model"
@@ -301,6 +302,59 @@ func (w *GCWorker) tick(ctx context.Context) {
 	}
 }
 
+// getGCSafePoint returns the current gc safe point.
+func getGCSafePoint(ctx context.Context, pdClient pd.Client) (uint64, error) {
+
+	// If there is try to set gc safepoint is 0, the interface will not set gc safepoint to 0,
+	// it will return current gc safepoint.
+	safePoint, err := pdClient.UpdateGCSafePoint(ctx, 0)
+	if err != nil {
+		return 0, errors.Trace(err)
+	}
+	return safePoint, nil
+}
+
+func (w *GCWorker) runKeyspaceDeleteRange(ctx context.Context, concurrency int) error {
+
+	// Get safepoint from PD.
+	safePoint, err := getGCSafePoint(ctx, w.pdClient)
+
+	keyspacePrefix := w.store.GetCodec().GetKeyspace()
+	keyspaceID := keyspace.GetID(keyspacePrefix)
+	logutil.Logger(ctx).Info("[gc worker] start keyspace delete range",
+		zap.String("uuid", w.uuid),
+		zap.Int("concurrency", concurrency),
+		zap.Uint32("keyspaceID", keyspaceID),
+		zap.Uint64("GCSafepoint", safePoint))
+
+	if safePoint == 0 {
+		logutil.Logger(ctx).Info("[gc worker] skip keyspace delete range, because gc safepoint is 0")
+		return nil
+	}
+
+	// Do deleteRanges.
+	err = w.deleteRanges(ctx, safePoint, concurrency)
+	if err != nil {
+		logutil.Logger(ctx).Error("[gc worker] delete range returns an error",
+			zap.String("uuid", w.uuid),
+			zap.Error(err))
+		metrics.GCJobFailureCounter.WithLabelValues("delete_range").Inc()
+		return errors.Trace(err)
+	}
+
+	// Do redoDeleteRanges.
+	err = w.redoDeleteRanges(ctx, safePoint, concurrency)
+	if err != nil {
+		logutil.Logger(ctx).Error("[gc worker] redo-delete range returns an error",
+			zap.String("uuid", w.uuid),
+			zap.Error(err))
+		metrics.GCJobFailureCounter.WithLabelValues("redo_delete_range").Inc()
+		return errors.Trace(err)
+	}
+
+	return nil
+}
+
 // leaderTick of GC worker checks if it should start a GC job every tick.
 func (w *GCWorker) leaderTick(ctx context.Context) error {
 	if w.gcIsRunning {
@@ -315,6 +369,38 @@ func (w *GCWorker) leaderTick(ctx context.Context) error {
 			zap.String("uuid", w.uuid),
 			zap.Error(err))
 		return errors.Trace(err)
+	}
+
+	// Do keyspace delete range
+	if keyspace.IsKvStorageKeyspaceSet(w.store) {
+
+		// When the worker is just started, or an old GC job has just finished,
+		// wait a while before starting a new job.
+		if time.Since(w.lastFinish) < gcWaitTime {
+			logutil.Logger(ctx).Info("[gc worker] another keyspace gc job has just finished, skipped.",
+				zap.String("leaderTick on ", w.uuid))
+			return nil
+		}
+
+		now, err := w.getOracleTime()
+		if err != nil {
+			return errors.Trace(err)
+		}
+		ok, err := w.checkGCInterval(now)
+		if err != nil || !ok {
+			return errors.Trace(err)
+		}
+
+		go func() {
+			w.done <- w.runKeyspaceDeleteRange(ctx, concurrency)
+		}()
+
+		err = w.saveTime(gcLastRunTimeKey, now)
+		if err != nil {
+			return errors.Trace(err)
+		}
+
+		return nil
 	}
 
 	ok, safePoint, err := w.prepare(ctx)
@@ -915,6 +1001,11 @@ func needsGCOperationForStore(store *metapb.Store) (bool, error) {
 	case placement.EngineLabelTiKV, "":
 		// If no engine label is set, it should be a TiKV node.
 		return true, nil
+
+	case placement.EngineLabelTiFlashCompute:
+		// For a TiFlash compute node, there is no data on it. so it's safe to skip sending
+		// UnsafeDestroyRange requests;
+		return false, nil
 
 	default:
 		return true, errors.Errorf("unsupported store engine \"%v\" with storeID %v, addr %v",
@@ -1826,7 +1917,7 @@ func (w *GCWorker) checkLeader(ctx context.Context) (bool, error) {
 		return false, errors.Trace(err)
 	}
 	if lease == nil || lease.Before(time.Now()) {
-		logutil.BgLogger().Debug("[gc worker] register as leader",
+		logutil.BgLogger().Info("[gc worker] register as leader",
 			zap.String("uuid", w.uuid))
 		metrics.GCWorkerCounter.WithLabelValues("register_leader").Inc()
 
@@ -2027,6 +2118,9 @@ func (w *GCWorker) doGCPlacementRules(se session.Session, safePoint uint64, dr u
 		logutil.BgLogger().Info("try delete TiFlash pd rule",
 			zap.Int64("tableID", id), zap.String("endKey", string(dr.EndKey)), zap.Uint64("safePoint", safePoint))
 		ruleID := fmt.Sprintf("table-%v-r", id)
+		ruleID = infosync.MakeRuleID(w.store.GetCodec(), ruleID)
+		logutil.BgLogger().Info("try delete TiFlash pd rule",
+			zap.Int64("tableID", id), zap.String("ruleID", ruleID), zap.String("endKey", string(dr.EndKey)), zap.Uint64("safePoint", safePoint))
 		if err := infosync.DeleteTiFlashPlacementRule(context.Background(), "tiflash", ruleID); err != nil {
 			// If DeletePlacementRule fails here, the rule will be deleted in `HandlePlacementRuleRoutine`.
 			logutil.BgLogger().Error("delete TiFlash pd rule failed when gc",

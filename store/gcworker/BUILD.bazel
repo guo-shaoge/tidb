@@ -12,6 +12,7 @@ go_library(
         "//ddl/placement",
         "//ddl/util",
         "//domain/infosync",
+        "//keyspace",
         "//kv",
         "//metrics",
         "//parser/model",

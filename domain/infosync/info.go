@@ -95,12 +95,13 @@ var ErrPrometheusAddrIsNotSet = dbterror.ClassDomain.NewStd(errno.ErrPrometheusA
 
 // InfoSyncer stores server info to etcd when the tidb-server starts and delete when tidb-server shuts down.
 type InfoSyncer struct {
-	etcdCli        *clientv3.Client
-	info           *ServerInfo
-	serverInfoPath string
-	minStartTS     uint64
-	minStartTSPath string
-	managerMu      struct {
+	etcdCli           *clientv3.Client
+	unprefixedEtcdCli *clientv3.Client
+	info              *ServerInfo
+	serverInfoPath    string
+	minStartTS        uint64
+	minStartTSPath    string
+	managerMu         struct {
 		mu sync.RWMutex
 		util2.SessionManager
 	}
@@ -183,13 +184,15 @@ func GlobalInfoSyncerInit(ctx context.Context,
 	id string,
 	serverIDGetter func() uint64,
 	etcdCli *clientv3.Client,
+	gcEtcdCli *clientv3.Client,
 	codec tikv.Codec,
 	skipRegisterToDashBoard bool) (*InfoSyncer, error) {
 	is := &InfoSyncer{
-		etcdCli:        etcdCli,
-		info:           getServerInfo(id, serverIDGetter),
-		serverInfoPath: fmt.Sprintf("%s/%s", ServerInformationPath, id),
-		minStartTSPath: fmt.Sprintf("%s/%s", ServerMinStartTSPath, id),
+		etcdCli:           etcdCli,
+		unprefixedEtcdCli: gcEtcdCli,
+		info:              getServerInfo(id, serverIDGetter),
+		serverInfoPath:    fmt.Sprintf("%s/%s", ServerInformationPath, id),
+		minStartTSPath:    fmt.Sprintf("%s/%s", ServerMinStartTSPath, id),
 	}
 	err := is.init(ctx, skipRegisterToDashBoard)
 	if err != nil {
@@ -679,20 +682,20 @@ func (is *InfoSyncer) GetMinStartTS() uint64 {
 
 // storeMinStartTS stores self server min start timestamp to etcd.
 func (is *InfoSyncer) storeMinStartTS(ctx context.Context) error {
-	if is.etcdCli == nil {
+	if is.unprefixedEtcdCli == nil {
 		return nil
 	}
-	return util.PutKVToEtcd(ctx, is.etcdCli, keyOpDefaultRetryCnt, is.minStartTSPath,
+	return util.PutKVToEtcd(ctx, is.unprefixedEtcdCli, keyOpDefaultRetryCnt, is.minStartTSPath,
 		strconv.FormatUint(is.minStartTS, 10),
 		clientv3.WithLease(is.session.Lease()))
 }
 
 // RemoveMinStartTS removes self server min start timestamp from etcd.
 func (is *InfoSyncer) RemoveMinStartTS() {
-	if is.etcdCli == nil {
+	if is.unprefixedEtcdCli == nil {
 		return
 	}
-	err := util.DeleteKeyFromEtcd(is.minStartTSPath, is.etcdCli, keyOpDefaultRetryCnt, keyOpDefaultTimeout)
+	err := util.DeleteKeyFromEtcd(is.minStartTSPath, is.unprefixedEtcdCli, keyOpDefaultRetryCnt, keyOpDefaultTimeout)
 	if err != nil {
 		logutil.BgLogger().Error("remove minStartTS failed", zap.Error(err))
 	}

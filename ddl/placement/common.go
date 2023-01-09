@@ -51,6 +51,9 @@ const (
 	// EngineLabelTiFlash is the label value, which a TiFlash instance will have with
 	// a label key of EngineLabelKey.
 	EngineLabelTiFlash = "tiflash"
+	// EngineLabelTiFlashCompute is the label value, which a TiFlash compute instance will have with
+	// a label key of EngineLabelKey.
+	EngineLabelTiFlashCompute = "tiflash_compute"
 	// EngineLabelTiKV is the label value used in some tests. And possibly TiKV will
 	// set the engine label with a value of EngineLabelTiKV.
 	EngineLabelTiKV = "tikv"

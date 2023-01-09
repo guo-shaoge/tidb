@@ -228,7 +228,8 @@ func (m *TiFlashReplicaManagerCtx) SetTiFlashGroupConfig(ctx context.Context) er
 	return nil
 }
 
-func makeRuleID(c tikv.Codec, ruleID string) string {
+// MakeRuleID is used to add the keyword prefix when use API V2.
+func MakeRuleID(c tikv.Codec, ruleID string) string {
 	if c.GetAPIVersion() == kvrpcpb.APIVersion_V2 && !strings.HasPrefix(ruleID, keyspaceIDLabel) {
 		keyspaceID := keyspace.GetID(c.GetKeyspace())
 		ruleID = fmt.Sprintf("%s-%v-%s", keyspaceIDLabel, keyspaceID, ruleID)
@@ -271,7 +272,7 @@ func encodeTiFlashPlacementRules(c tikv.Codec, rule *placement.TiFlashRule) erro
 	rule.StartKeyHex = hex.EncodeToString(startKey)
 	rule.EndKeyHex = hex.EncodeToString(endKey)
 
-	rule.ID = makeRuleID(c, rule.ID)
+	rule.ID = MakeRuleID(c, rule.ID)
 	return nil
 }
 
@@ -303,7 +304,7 @@ func (m *TiFlashReplicaManagerCtx) SetPlacementRule(ctx context.Context, rule pl
 
 // DeletePlacementRule is to delete placement rule for certain group.
 func (m *TiFlashReplicaManagerCtx) DeletePlacementRule(ctx context.Context, group string, ruleID string) error {
-	ruleID = makeRuleID(m.codec, ruleID)
+	ruleID = MakeRuleID(m.codec, ruleID)
 	res, err := doRequest(ctx, "DeletePlacementRule", m.etcdCli.Endpoints(), path.Join(pdapi.Config, "rule", group, ruleID), "DELETE", nil)
 	if err != nil {
 		return errors.Trace(err)
