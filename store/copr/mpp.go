@@ -235,13 +235,15 @@ func (m *mppIterator) handleDispatchReq(ctx context.Context, bo *Backoffer, req 
 		}
 	}
 
+	disaggregatedTiFlash := config.GetGlobalConfig().DisaggregatedTiFlash
 	wrappedReq := tikvrpc.NewRequest(tikvrpc.CmdMPPTask, mppReq, kvrpcpb.Context{})
-	wrappedReq.StoreTp = tikvrpc.TiFlash
+	wrappedReq.StoreTp = getEndPointType(kv.TiFlash)
 
 	// TODO: Handle dispatch task response correctly, including retry logic and cancel logic.
 	var rpcResp *tikvrpc.Response
 	var err error
 	var retry bool
+
 	// If copTasks is not empty, we should send request according to region distribution.
 	// Or else it's the task without region, which always happens in high layer task without table.
 	// In that case
@@ -253,6 +255,9 @@ func (m *mppIterator) handleDispatchReq(ctx context.Context, bo *Backoffer, req 
 		// That's a hard job but we can try it in the future.
 		if sender.GetRPCError() != nil {
 			logutil.BgLogger().Warn("mpp dispatch meet io error", zap.String("error", sender.GetRPCError().Error()), zap.Uint64("timestamp", taskMeta.StartTs), zap.Int64("task", taskMeta.TaskId))
+			if disaggregatedTiFlash {
+				m.store.GetRegionCache().InvalidateTiFlashComputeStores()
+			}
 			// if needTriggerFallback is true, we return timeout to trigger tikv's fallback
 			if m.needTriggerFallback {
 				err = derr.ErrTiFlashServerTimeout
@@ -265,6 +270,9 @@ func (m *mppIterator) handleDispatchReq(ctx context.Context, bo *Backoffer, req 
 		if errors.Cause(err) == context.Canceled || status.Code(errors.Cause(err)) == codes.Canceled {
 			retry = false
 		} else if err != nil {
+			if disaggregatedTiFlash {
+				m.store.GetRegionCache().InvalidateTiFlashComputeStores()
+			}
 			if bo.Backoff(tikv.BoTiFlashRPC(), err) == nil {
 				retry = true
 			}
@@ -327,8 +335,9 @@ func (m *mppIterator) cancelMppTasks() {
 		Meta: &mpp.TaskMeta{StartTs: m.startTs},
 	}
 
+	disaggregatedTiFlash := config.GetGlobalConfig().DisaggregatedTiFlash
 	wrappedReq := tikvrpc.NewRequest(tikvrpc.CmdMPPCancel, killReq, kvrpcpb.Context{})
-	wrappedReq.StoreTp = tikvrpc.TiFlash
+	wrappedReq.StoreTp = getEndPointType(kv.TiFlash)
 
 	usedStoreAddrs := make(map[string]bool)
 	for _, task := range m.tasks {
@@ -342,6 +351,7 @@ func (m *mppIterator) cancelMppTasks() {
 	}
 
 	// send cancel cmd to all stores where tasks run
+	gotErr := atomic.Bool{}
 	wg := util.WaitGroupWrapper{}
 	for addr := range usedStoreAddrs {
 		storeAddr := addr
@@ -350,10 +360,14 @@ func (m *mppIterator) cancelMppTasks() {
 			logutil.BgLogger().Debug("cancel task", zap.Uint64("query id ", m.startTs), zap.String("on addr", storeAddr))
 			if err != nil {
 				logutil.BgLogger().Error("cancel task error", zap.Error(err), zap.Uint64("query id", m.startTs), zap.String("on addr", storeAddr))
+				gotErr.CompareAndSwap(false, true)
 			}
 		})
 	}
 	wg.Wait()
+	if gotErr.Load() && disaggregatedTiFlash {
+		m.store.GetRegionCache().InvalidateTiFlashComputeStores()
+	}
 }
 
 func (m *mppIterator) establishMPPConns(bo *Backoffer, req *kv.MPPDispatchRequest, taskMeta *mpp.TaskMeta) {
@@ -365,8 +379,11 @@ func (m *mppIterator) establishMPPConns(bo *Backoffer, req *kv.MPPDispatchReques
 		},
 	}
 
+	var err error
+	disaggregatedTiFlash := config.GetGlobalConfig().DisaggregatedTiFlash
+
 	wrappedReq := tikvrpc.NewRequest(tikvrpc.CmdMPPConn, connReq, kvrpcpb.Context{})
-	wrappedReq.StoreTp = tikvrpc.TiFlash
+	wrappedReq.StoreTp = getEndPointType(kv.TiFlash)
 
 	// Drain results from root task.
 	// We don't need to process any special error. When we meet errors, just let it fail.
@@ -374,6 +391,9 @@ func (m *mppIterator) establishMPPConns(bo *Backoffer, req *kv.MPPDispatchReques
 
 	if err != nil {
 		logutil.BgLogger().Warn("establish mpp connection meet error and cannot retry", zap.String("error", err.Error()), zap.Uint64("timestamp", taskMeta.StartTs), zap.Int64("task", taskMeta.TaskId))
+		if disaggregatedTiFlash {
+			m.store.GetRegionCache().InvalidateTiFlashComputeStores()
+		}
 		// if needTriggerFallback is true, we return timeout to trigger tikv's fallback
 		if m.needTriggerFallback {
 			m.sendError(derr.ErrTiFlashServerTimeout)

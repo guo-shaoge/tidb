@@ -2,9 +2,9 @@ name: BR-CD
 
 on:
   push:
-    branches: ["keyspace-on-release-6.4"]
+    branches: ["keyspace-on-release-6.4-tiflash-compute"]
   pull_request:
-    branches: ["keyspace-on-release-6.4"]
+    branches: ["keyspace-on-release-6.4-tiflash-compute"]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}

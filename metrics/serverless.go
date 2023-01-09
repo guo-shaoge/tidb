@@ -29,8 +29,8 @@ const (
 
 // Identify serverless cluster. Should be setup before register metrics.
 var (
-	ServerlessLabels prometheus.Labels
-  ServerlessTenantID  string
+	ServerlessLabels    prometheus.Labels
+	ServerlessTenantID  string
 	ServerlessProjectID string
 	ServerlessClusterID string
 )
@@ -84,4 +84,3 @@ func NewSummaryVec(opts prometheus.SummaryOpts, labelNames []string) *prometheus
 	opts.ConstLabels = ServerlessLabels
 	return prometheus.NewSummaryVec(opts, labelNames)
 }
-

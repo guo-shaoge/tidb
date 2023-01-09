@@ -925,8 +925,8 @@ github.com/tidbcloud/kvproto v0.0.0-20221207104026-412a7a511f18 h1:/Xmofou91BGE5
 github.com/tidbcloud/kvproto v0.0.0-20221207104026-412a7a511f18/go.mod h1:OYtxs0786qojVTmkVeufx93xe+jUgm56GUYRIKnmaGI=
 github.com/tidbcloud/pd-cse/client v0.0.0-20220905061235-4cfe0db56daa h1:Aa2U13dX3kLKivgSXVW2hr7s4c1r4HJKOhJrkYse98s=
 github.com/tidbcloud/pd-cse/client v0.0.0-20220905061235-4cfe0db56daa/go.mod h1:l76QLn0xvJx6k6maY+OmybxJDUnXf5Z4xDsypKRctao=
-github.com/tikv/client-go/v2 v2.0.3-0.20221222063523-0ab7cd8f0019 h1:My7En9GlAuxeVkX5ZScHGa3610+IiA57lfjrX4URAAM=
-github.com/tikv/client-go/v2 v2.0.3-0.20221222063523-0ab7cd8f0019/go.mod h1:4xeJmZik5dLCgKC7XdRBigJyrsLNNlhBUOtiDh0skhw=
+github.com/tikv/client-go/v2 v2.0.3-0.20221226061013-b9ce53ad45f8 h1:jVhGoilndLWePgzohvTVtGLtqb+v3tWMeKv54ngJdx0=
+github.com/tikv/client-go/v2 v2.0.3-0.20221226061013-b9ce53ad45f8/go.mod h1:4xeJmZik5dLCgKC7XdRBigJyrsLNNlhBUOtiDh0skhw=
 github.com/timakin/bodyclose v0.0.0-20210704033933-f49887972144 h1:kl4KhGNsJIbDHS9/4U9yQo1UcPQM0kOMJHn29EoH/Ro=
 github.com/timakin/bodyclose v0.0.0-20210704033933-f49887972144/go.mod h1:Qimiffbc6q9tBWlVV6x0P9sat/ao1xEkREYPPj9hphk=
 github.com/tklauser/go-sysconf v0.3.9/go.mod h1:11DU/5sG7UexIrp/O6g35hrWzu0JxlwQ3LSFUzyeuhs=

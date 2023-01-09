@@ -83,6 +83,7 @@ require (
 	github.com/soheilhy/cmux v0.1.5
 	github.com/spf13/cobra v1.5.0
 	github.com/spf13/pflag v1.0.5
+	github.com/stathat/consistent v1.0.0
 	github.com/stretchr/testify v1.8.0
 	github.com/tdakkota/asciicheck v0.1.1
 	github.com/tiancaiamao/appdash v0.0.0-20181126055449-889f96f722a2
@@ -215,7 +216,6 @@ require (
 	github.com/shurcooL/httpfs v0.0.0-20190707220628-8d4bc4ba7749 // indirect
 	github.com/shurcooL/vfsgen v0.0.0-20181202132449-6a9ea43bcacd // indirect
 	github.com/sirupsen/logrus v1.9.0 // indirect
-	github.com/stathat/consistent v1.0.0 // indirect
 	github.com/tklauser/go-sysconf v0.3.10 // indirect
 	github.com/tklauser/numcpus v0.4.0 // indirect
 	github.com/tmc/grpc-websocket-proxy v0.0.0-20201229170055-e5319fda7802 // indirect
@@ -255,7 +255,7 @@ replace (
 	github.com/pingcap/kvproto => github.com/tidbcloud/kvproto v0.0.0-20221207104026-412a7a511f18
 	github.com/pingcap/tidb/parser => ./parser
 	// Use github.com/tikv/client-go/v2@api-v2-release-6.4
-	github.com/tikv/client-go/v2 => github.com/tikv/client-go/v2 v2.0.3-0.20221222063523-0ab7cd8f0019
+	github.com/tikv/client-go/v2 => github.com/tikv/client-go/v2 v2.0.3-0.20221226061013-b9ce53ad45f8
 
 	// Use github.com/tidbcloud/pd-cse/client
 	github.com/tikv/pd/client => github.com/tidbcloud/pd-cse/client v0.0.0-20220905061235-4cfe0db56daa
