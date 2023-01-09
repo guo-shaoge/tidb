@@ -2,9 +2,9 @@ name: TIDB-CD
 
 on:
   push:
-    branches: ["keyspace-on-release-6.4-tiflash-compute"]
+    branches: ["keyspace-on-release-6.4"]
   pull_request:
-    branches: ["keyspace-on-release-6.4-tiflash-compute"]
+    branches: ["keyspace-on-release-6.4"]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
