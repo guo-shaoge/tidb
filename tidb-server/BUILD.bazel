@@ -52,6 +52,7 @@ go_library(
         "//util/sys/linux",
         "//util/sys/storage",
         "//util/systimemon",
+        "//util/tiflashcompute",
         "//util/topsql",
         "//util/topsql/reporter",
         "//util/versioninfo",

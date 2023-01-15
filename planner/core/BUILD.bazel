@@ -108,7 +108,6 @@ go_library(
         "//sessiontxn/staleread",
         "//statistics",
         "//statistics/handle",
-        "//store/driver/backoff",
         "//table",
         "//table/tables",
         "//table/temptable",
