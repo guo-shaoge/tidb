@@ -30,6 +30,7 @@ import (
 
 var globalTopoFetcher TopoFetcher
 var _ TopoFetcher = &MockTopoFetcher{}
+var _ TopoFetcher = &AWSTopoFetcher{}
 
 const (
 	// MockASStr is String value for mock AutoScaler.
@@ -52,8 +53,8 @@ const (
 )
 
 const (
-	awsFixedPoolHttpPath = "sharedfixedpool"
-	awsFetchHttpPath     = "resume-and-get-topology"
+	awsFixedPoolHTTPPath = "sharedfixedpool"
+	awsFetchHTTPPath     = "resume-and-get-topology"
 )
 
 // TopoFetcher is interface for fetching topo from AutoScaler.
@@ -239,6 +240,7 @@ func httpGetAndParseResp(url string) ([]string, error) {
 	return newTopo, nil
 }
 
+// AWSTopoFetcher will fetch topo from AWSAutoScaler.
 type AWSTopoFetcher struct {
 	mu struct {
 		sync.RWMutex
@@ -253,7 +255,7 @@ type AWSTopoFetcher struct {
 }
 
 // todo: check if ok.
-type ResumeAndGetTopo struct {
+type resumeAndGetTopo struct {
 	hasErr    bool     `json:"hasErr"`
 	errorInfo string   `json:"errorInfo"`
 	state     string   `json:"state"`
@@ -261,6 +263,7 @@ type ResumeAndGetTopo struct {
 	timestamp int64    `json:"timestamp"`
 }
 
+// NewAWSAutoScalerFetcher create a new AWSTopoFetcher.
 func NewAWSAutoScalerFetcher(addr string, clusterID string, isFixed bool) *AWSTopoFetcher {
 	f := &AWSTopoFetcher{}
 	f.mu.topo = make([]string, 0, 8)
@@ -271,10 +274,12 @@ func NewAWSAutoScalerFetcher(addr string, clusterID string, isFixed bool) *AWSTo
 	return f
 }
 
+// AssureAndGetTopo implements TopoFetcher interface.
 func (f *AWSTopoFetcher) AssureAndGetTopo() ([]string, error) {
 	return nil, errors.New("AWSTopoFetcher AssureAndGetTopo not implemented")
 }
 
+// FetchAndGetTopo implements TopoFetcher interface.
 func (f *AWSTopoFetcher) FetchAndGetTopo() (curTopo []string, err error) {
 	defer func() {
 		logutil.BgLogger().Info("AWSTopoFetcher FetchAndGetTopo done", zap.Any("curTopo", curTopo))
@@ -296,7 +301,7 @@ func (f *AWSTopoFetcher) FetchAndGetTopo() (curTopo []string, err error) {
 	return curTopo, nil
 }
 
-func awsHttpGetAndParseResp(url string) (*ResumeAndGetTopo, error) {
+func awsHTTPGetAndParseResp(url string) (*resumeAndGetTopo, error) {
 	resp, err := http.Get(url)
 	if err != nil {
 		return nil, errors.Trace(err)
@@ -312,16 +317,16 @@ func awsHttpGetAndParseResp(url string) (*ResumeAndGetTopo, error) {
 		return nil, errors.Errorf("http get mock AutoScaler failed. url: %s, status code: %s, http resp body: %s", url, http.StatusText(resp.StatusCode), bStr)
 	}
 
-	res := &ResumeAndGetTopo{}
+	res := &resumeAndGetTopo{}
 	if err = json.Unmarshal(b, &res); err != nil {
 		return nil, errors.Trace(err)
 	}
 
-	logutil.BgLogger().Debug("awsHttpGetAndParseResp succeed", zap.Any("resp", res))
+	logutil.BgLogger().Debug("awsHTTPGetAndParseResp succeed", zap.Any("resp", res))
 	return res, nil
 }
 
-func (f *AWSTopoFetcher) tryUpdateTopo(newTopo *ResumeAndGetTopo) (updated bool) {
+func (f *AWSTopoFetcher) tryUpdateTopo(newTopo *resumeAndGetTopo) (updated bool) {
 	cachedTopo, cachedTS := f.getTopo()
 	defer func() {
 		logutil.BgLogger().Info("try update topo", zap.Any("updated", updated),
@@ -349,12 +354,12 @@ func (f *AWSTopoFetcher) fetchFixedPoolTopo() error {
 	u := url.URL{
 		Scheme: "http",
 		Host:   f.addr,
-		Path:   awsFixedPoolHttpPath,
+		Path:   awsFixedPoolHTTPPath,
 	}
 	url := u.String()
 	logutil.BgLogger().Info("fetchFixedPoolTopo", zap.Any("url", url))
 
-	newTopo, err := awsHttpGetAndParseResp(url)
+	newTopo, err := awsHTTPGetAndParseResp(url)
 	if err != nil {
 		return err
 	}
@@ -369,13 +374,13 @@ func (f *AWSTopoFetcher) fetchTopo() error {
 	u := url.URL{
 		Scheme:   "http",
 		Host:     f.addr,
-		Path:     awsFetchHttpPath,
+		Path:     awsFetchHTTPPath,
 		RawQuery: para.Encode(),
 	}
 	url := u.String()
 	logutil.BgLogger().Info("fetchTopo", zap.Any("url", url))
 
-	newTopo, err := awsHttpGetAndParseResp(url)
+	newTopo, err := awsHTTPGetAndParseResp(url)
 	if err != nil {
 		return err
 	}
