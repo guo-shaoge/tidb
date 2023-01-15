@@ -295,6 +295,7 @@ type Config struct {
 	DisaggregatedTiFlash         bool       `toml:"disaggregated-tiflash" json:"disaggregated-tiflash"`
 	TiFlashComputeAutoScalerType string     `toml:"autoscaler-type" json:"autoscaler-type"`
 	TiFlashComputeAutoScalerAddr string     `toml:"autoscaler-addr" json:"autoscaler-addr"`
+	IsTiFlashComputeFixedPool    bool       `toml:"is-compute-fixed-pool" json:"is-compute-fixed-pool"`
 	// TiDBMaxReuseChunk indicates max cached chunk num
 	TiDBMaxReuseChunk uint32 `toml:"tidb-max-reuse-chunk" json:"tidb-max-reuse-chunk"`
 	// TiDBMaxReuseColumn indicates max cached column num

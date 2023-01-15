@@ -15,15 +15,17 @@
 package tiflashcompute
 
 import (
-	"github.com/pingcap/errors"
-	"github.com/pingcap/tidb/util/logutil"
-	"go.uber.org/zap"
+	"encoding/json"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 	"sync"
+
+	"github.com/pingcap/errors"
+	"github.com/pingcap/tidb/util/logutil"
+	"go.uber.org/zap"
 )
 
 var globalTopoFetcher TopoFetcher
@@ -47,6 +49,11 @@ const (
 	GCPASType
 	// InvalidASType is int value for invalid check.
 	InvalidASType
+)
+
+const (
+	awsFixedPoolHttpPath = "sharedfixedpool"
+	awsFetchHttpPath     = "resume-and-get-topology"
 )
 
 // TopoFetcher is interface for fetching topo from AutoScaler.
@@ -79,17 +86,19 @@ func GetAutoScalerType(typ string) int {
 }
 
 // InitGlobalTopoFetcher init globalTopoFetcher if is in disaggregated-tiflash mode. It's not thread-safe.
-func InitGlobalTopoFetcher(typ string, addr string) error {
-	if globalTopoFetcher != nil {
-		return errors.New("globalTopoFetcher alread inited")
-	}
+func InitGlobalTopoFetcher(typ string, addr string, clusterID string, isFixedPool bool) error {
+	logutil.BgLogger().Info("globalTopoFetcher inited", zap.Any("type", typ), zap.Any("addr", addr),
+		zap.Any("clusterID", clusterID), zap.Any("isFixedPool", isFixedPool))
 
 	ft := GetAutoScalerType(typ)
 	switch ft {
 	case MockASType:
 		globalTopoFetcher = NewMockAutoScalerFetcher(addr)
 		return nil
-	case AWSASType, GCPASType:
+	case AWSASType:
+		globalTopoFetcher = NewAWSAutoScalerFetcher(addr, clusterID, isFixedPool)
+		return nil
+	case GCPASType:
 		return errors.Errorf("topo fetch not implemented yet(%s)", typ)
 	}
 	return errors.Errorf("unexpected topo fetch type. expect: %s or %s or %s, got %s",
@@ -226,7 +235,7 @@ func httpGetAndParseResp(url string) ([]string, error) {
 	if len(bStr) == 0 || len(newTopo) == 0 {
 		return nil, errors.New("topo list is empty")
 	}
-	logutil.BgLogger().Debug("assureTopo succeed", zap.Any("new topo", newTopo))
+	logutil.BgLogger().Debug("httpGetAndParseResp succeed", zap.Any("new topo", newTopo))
 	return newTopo, nil
 }
 
@@ -237,22 +246,146 @@ type AWSTopoFetcher struct {
 		topoTS int64
 	}
 	// AWS AutoScaler addr.
+	// These should be init when TiDB start, all single threaded, no need to lock.
 	addr        string
-	IsFixedPool bool
+	clusterID   string
+	isFixedPool bool
 }
 
-func NewAWSAutoScalerFetcher(addr string) *AWSTopoFetcher {
+// todo: check if ok.
+type ResumeAndGetTopo struct {
+	hasErr    bool     `json:"hasErr"`
+	errorInfo string   `json:"errorInfo"`
+	state     string   `json:"state"`
+	topology  []string `json:"topology"`
+	timestamp int64    `json:"timestamp"`
+}
+
+func NewAWSAutoScalerFetcher(addr string, clusterID string, isFixed bool) *AWSTopoFetcher {
 	f := &AWSTopoFetcher{}
 	f.mu.topo = make([]string, 0, 8)
 	f.mu.topoTS = -1
 	f.addr = addr
+	f.clusterID = clusterID
+	f.isFixedPool = isFixed
 	return f
 }
 
 func (f *AWSTopoFetcher) AssureAndGetTopo() ([]string, error) {
-	return nil, nil
+	return nil, errors.New("AWSTopoFetcher AssureAndGetTopo not implemented")
 }
 
-func (f *AWSTopoFetcher) FetchAndGetTopo() ([]string, error) {
-	return nil, nil
+func (f *AWSTopoFetcher) FetchAndGetTopo() (curTopo []string, err error) {
+	defer func() {
+		logutil.BgLogger().Info("AWSTopoFetcher FetchAndGetTopo done", zap.Any("curTopo", curTopo))
+	}()
+
+	if f.isFixedPool {
+		if err = f.fetchFixedPoolTopo(); err != nil {
+			return nil, err
+		}
+		curTopo, _ = f.getTopo()
+		return curTopo, nil
+	}
+
+	if err = f.fetchTopo(); err != nil {
+		return nil, err
+	}
+
+	curTopo, _ = f.getTopo()
+	return curTopo, nil
+}
+
+func awsHttpGetAndParseResp(url string) (*ResumeAndGetTopo, error) {
+	resp, err := http.Get(url)
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+	defer resp.Body.Close()
+
+	b, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+	bStr := string(b)
+	if resp.StatusCode != http.StatusOK {
+		return nil, errors.Errorf("http get mock AutoScaler failed. url: %s, status code: %s, http resp body: %s", url, http.StatusText(resp.StatusCode), bStr)
+	}
+
+	res := &ResumeAndGetTopo{}
+	if err = json.Unmarshal(b, &res); err != nil {
+		return nil, errors.Trace(err)
+	}
+
+	logutil.BgLogger().Debug("awsHttpGetAndParseResp succeed", zap.Any("resp", res))
+	return res, nil
+}
+
+func (f *AWSTopoFetcher) tryUpdateTopo(newTopo *ResumeAndGetTopo) (updated bool) {
+	cachedTopo, cachedTS := f.getTopo()
+	defer func() {
+		logutil.BgLogger().Info("try update topo", zap.Any("updated", updated),
+			zap.Any("cached TS", cachedTS), zap.Any("cached Topo", cachedTopo),
+			zap.Any("fetch TS", newTopo.timestamp), zap.Any("fetch topo", newTopo.topology))
+	}()
+	// todo: >= ?
+	if cachedTS > newTopo.timestamp {
+		return
+	}
+
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	cachedTS = f.mu.topoTS
+	if cachedTS > newTopo.timestamp {
+		return
+	}
+	updated = true
+	f.mu.topo = newTopo.topology
+	f.mu.topoTS = newTopo.timestamp
+	return
+}
+
+func (f *AWSTopoFetcher) fetchFixedPoolTopo() error {
+	u := url.URL{
+		Scheme: "http",
+		Host:   f.addr,
+		Path:   awsFixedPoolHttpPath,
+	}
+	url := u.String()
+	logutil.BgLogger().Info("fetchFixedPoolTopo", zap.Any("url", url))
+
+	newTopo, err := awsHttpGetAndParseResp(url)
+	if err != nil {
+		return err
+	}
+
+	f.tryUpdateTopo(newTopo)
+	return nil
+}
+
+func (f *AWSTopoFetcher) fetchTopo() error {
+	para := url.Values{}
+	para.Add("tidbclusterid", f.clusterID)
+	u := url.URL{
+		Scheme:   "http",
+		Host:     f.addr,
+		Path:     awsFetchHttpPath,
+		RawQuery: para.Encode(),
+	}
+	url := u.String()
+	logutil.BgLogger().Info("fetchTopo", zap.Any("url", url))
+
+	newTopo, err := awsHttpGetAndParseResp(url)
+	if err != nil {
+		return err
+	}
+
+	f.tryUpdateTopo(newTopo)
+	return nil
+}
+
+func (f *AWSTopoFetcher) getTopo() ([]string, int64) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	return f.mu.topo, f.mu.topoTS
 }

@@ -947,7 +947,9 @@ func setupExtensions() *extension.Extensions {
 	if config.GetGlobalConfig().DisaggregatedTiFlash {
 		err = tiflashcompute.InitGlobalTopoFetcher(
 			config.GetGlobalConfig().TiFlashComputeAutoScalerType,
-			config.GetGlobalConfig().TiFlashComputeAutoScalerAddr)
+			config.GetGlobalConfig().TiFlashComputeAutoScalerAddr,
+			config.GetGlobalConfig().KeyspaceName,
+			config.GetGlobalConfig().IsTiFlashComputeFixedPool)
 		terror.MustNil(err)
 	}
 
