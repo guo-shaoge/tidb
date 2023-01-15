@@ -36,6 +36,8 @@ import (
 	"github.com/pingcap/tidb/store/driver/backoff"
 	derr "github.com/pingcap/tidb/store/driver/error"
 	"github.com/pingcap/tidb/util/logutil"
+	"github.com/pingcap/tidb/util/tiflashcompute"
+	"github.com/stathat/consistent"
 	"github.com/tikv/client-go/v2/metrics"
 	"github.com/tikv/client-go/v2/tikv"
 	"github.com/tikv/client-go/v2/tikvrpc"
@@ -518,11 +520,31 @@ func buildBatchCopTasksForPartitionedTable(bo *backoff.Backoffer,
 	return batchTasks, nil
 }
 
-func filterAliveStores(ctx context.Context, stores []*tikv.Store, mppStoreLastFailTime *sync.Map, ttl time.Duration, kvStore *kvStore) []*tikv.Store {
+func filterAliveStoresStr(ctx context.Context, storesStr []string, mppStoreLastFailTime *sync.Map, ttl time.Duration, kvStore *kvStore) (aliveStores []string) {
+	aliveIdx := filterAliveStoresHelper(ctx, storesStr, mppStoreLastFailTime, ttl, kvStore)
+	for _, idx := range aliveIdx {
+		aliveStores = append(aliveStores, storesStr[idx])
+	}
+	return aliveStores
+}
+
+func filterAliveStores(ctx context.Context, stores []*tikv.Store, mppStoreLastFailTime *sync.Map, ttl time.Duration, kvStore *kvStore) (aliveStores []*tikv.Store) {
+	storesStr := make([]string, 0, len(stores))
+	for _, s := range stores {
+		storesStr = append(storesStr, s.GetAddr())
+	}
+
+	aliveIdx := filterAliveStoresHelper(ctx, storesStr, mppStoreLastFailTime, ttl, kvStore)
+	for _, idx := range aliveIdx {
+		aliveStores = append(aliveStores, stores[idx])
+	}
+	return aliveStores
+}
+
+func filterAliveStoresHelper(ctx context.Context, stores []string, mppStoreLastFailTime *sync.Map, ttl time.Duration, kvStore *kvStore) (aliveIdx []int) {
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 	wg.Add(len(stores))
-	aliveStores := make([]*tikv.Store, 0, len(stores))
 	for i := range stores {
 		go func(idx int) {
 			defer wg.Done()
@@ -530,14 +552,14 @@ func filterAliveStores(ctx context.Context, stores []*tikv.Store, mppStoreLastFa
 
 			var lastAny any
 			var ok bool
-			if lastAny, ok = mppStoreLastFailTime.Load(s.GetAddr()); ok && time.Since(lastAny.(time.Time)) < 100*time.Millisecond {
+			if lastAny, ok = mppStoreLastFailTime.Load(s); ok && time.Since(lastAny.(time.Time)) < 100*time.Millisecond {
 				// The interval time is so short that may happen in a same query, so we needn't to check again.
 				return
 			} else if !ok {
 				lastAny = time.Time{}
 			}
 
-			resp, err := kvStore.GetTiKVClient().SendRequest(ctx, s.GetAddr(), &tikvrpc.Request{
+			resp, err := kvStore.GetTiKVClient().SendRequest(ctx, s, &tikvrpc.Request{
 				Type:    tikvrpc.CmdMPPAlive,
 				StoreTp: tikvrpc.TiFlash,
 				Req:     &mpp.IsAliveRequest{},
@@ -545,26 +567,48 @@ func filterAliveStores(ctx context.Context, stores []*tikv.Store, mppStoreLastFa
 			}, detectTimeoutLimit)
 
 			if err != nil || !resp.Resp.(*mpp.IsAliveResponse).Available {
-				logutil.BgLogger().Warn("Store is not ready", zap.String("store address", s.GetAddr()), zap.Error(err))
-				mppStoreLastFailTime.Store(s.GetAddr(), time.Now())
+				logutil.BgLogger().Warn("Store is not ready", zap.String("store address", s), zap.Error(err))
+				mppStoreLastFailTime.Store(s, time.Now())
 				return
 			}
 
 			if time.Since(lastAny.(time.Time)) < ttl {
 				logutil.BgLogger().Warn("Cannot detect store's availability because the current time has not reached MPPStoreLastFailTime + MPPStoreFailTTL",
-					zap.String("store address", s.GetAddr()), zap.Time("last fail time", lastAny.(time.Time)))
+					zap.String("store address", s), zap.Time("last fail time", lastAny.(time.Time)))
 				return
 			}
 
 			mu.Lock()
 			defer mu.Unlock()
-			aliveStores = append(aliveStores, s)
+			aliveIdx = append(aliveIdx, i)
 		}(i)
 	}
 	wg.Wait()
 
-	logutil.BgLogger().Info("detecting available mpp stores", zap.Any("total", len(stores)), zap.Any("alive", len(aliveStores)))
-	return aliveStores
+	logutil.BgLogger().Info("detecting available mpp stores", zap.Any("total", len(stores)), zap.Any("alive", len(aliveIdx)))
+	return aliveIdx
+}
+
+func getTiFlashComputeRPCContextByConsistentHash(ids []tikv.RegionVerID, storesStr []string) (res []*tikv.RPCContext, err error) {
+	hasher := consistent.New()
+	for _, addr := range storesStr {
+		hasher.Add(addr)
+	}
+
+	for _, id := range ids {
+		addr, err := hasher.Get(strconv.Itoa(int(id.GetID())))
+		if err != nil {
+			return nil, err
+		}
+
+		rpcCtx := &tikv.RPCContext{
+			Region: id,
+			Addr:   addr,
+		}
+
+		res = append(res, rpcCtx)
+	}
+	return res, nil
 }
 
 // 1. Split range by region location to build copTasks.
@@ -604,16 +648,16 @@ func buildBatchCopTasksConsistentHash(bo *backoff.Backoffer,
 			}
 		}
 
-		stores, err := cache.GetTiFlashComputeStores(bo.TiKVBackoffer())
+		storesStr, err := tiflashcompute.GetGlobalTopoFetcher().FetchAndGetTopo()
 		if err != nil {
 			return nil, err
 		}
-		stores = filterAliveStores(bo.GetCtx(), stores, mppStoreLastFailTime, ttl, kvStore)
+		stores := filterAliveStoresStr(bo.GetCtx(), storesStr, mppStoreLastFailTime, ttl, kvStore)
 		if len(stores) == 0 {
 			return nil, errors.New("tiflash_compute node is unavailable")
 		}
 
-		rpcCtxs, err := cache.GetTiFlashComputeRPCContextByConsistentHash(bo.TiKVBackoffer(), regionIDs, stores)
+		rpcCtxs, err := getTiFlashComputeRPCContextByConsistentHash(regionIDs, storesStr)
 		if err != nil {
 			return nil, err
 		}
@@ -632,10 +676,11 @@ func buildBatchCopTasksConsistentHash(bo *backoff.Backoffer,
 		for i, rpcCtx := range rpcCtxs {
 			regionInfo := RegionInfo{
 				// tasks and rpcCtxs are correspond to each other.
-				Region:         tasks[i].region,
-				Meta:           rpcCtx.Meta,
-				Ranges:         tasks[i].ranges,
-				AllStores:      []uint64{rpcCtx.Store.StoreID()},
+				Region: tasks[i].region,
+				// todo: no need
+				// Meta:           rpcCtx.Meta,
+				Ranges: tasks[i].ranges,
+				// AllStores:      []uint64{rpcCtx.Store.StoreID()},
 				PartitionIndex: tasks[i].partitionIndex,
 			}
 			if batchTask, ok := taskMap[rpcCtx.Addr]; ok {

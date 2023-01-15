@@ -256,6 +256,7 @@ func (m *mppIterator) handleDispatchReq(ctx context.Context, bo *Backoffer, req 
 		if sender.GetRPCError() != nil {
 			logutil.BgLogger().Warn("mpp dispatch meet io error", zap.String("error", sender.GetRPCError().Error()), zap.Uint64("timestamp", taskMeta.StartTs), zap.Int64("task", taskMeta.TaskId))
 			if disaggregatedTiFlash {
+				// todo: fix when use topoFetcher
 				m.store.GetRegionCache().InvalidateTiFlashComputeStores()
 			}
 			// if needTriggerFallback is true, we return timeout to trigger tikv's fallback

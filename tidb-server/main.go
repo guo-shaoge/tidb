@@ -78,6 +78,7 @@ import (
 	"github.com/pingcap/tidb/util/sys/linux"
 	storageSys "github.com/pingcap/tidb/util/sys/storage"
 	"github.com/pingcap/tidb/util/systimemon"
+	"github.com/pingcap/tidb/util/tiflashcompute"
 	"github.com/pingcap/tidb/util/topsql"
 	"github.com/pingcap/tidb/util/topsql/reporter"
 	"github.com/pingcap/tidb/util/versioninfo"
@@ -943,6 +944,12 @@ func setupLog() error {
 func setupExtensions() *extension.Extensions {
 	err := extension.Setup()
 	terror.MustNil(err)
+	if config.GetGlobalConfig().DisaggregatedTiFlash {
+		err = tiflashcompute.InitGlobalTopoFetcher(
+			config.GetGlobalConfig().TiFlashComputeAutoScalerType,
+			config.GetGlobalConfig().TiFlashComputeAutoScalerAddr)
+		terror.MustNil(err)
+	}
 
 	extensions, err := extension.GetExtensions()
 	terror.MustNil(err)
