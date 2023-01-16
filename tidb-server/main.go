@@ -252,6 +252,15 @@ func main() {
 	setupLog()
 	setupExtensions()
 
+	if config.GetGlobalConfig().DisaggregatedTiFlash {
+		err = tiflashcompute.InitGlobalTopoFetcher(
+			config.GetGlobalConfig().TiFlashComputeAutoScalerType,
+			config.GetGlobalConfig().TiFlashComputeAutoScalerAddr,
+			config.GetGlobalConfig().KeyspaceName,
+			config.GetGlobalConfig().IsTiFlashComputeFixedPool)
+		terror.MustNil(err)
+	}
+
 	err = cpuprofile.StartCPUProfiler()
 	mainErrHandler(err)
 
@@ -944,14 +953,6 @@ func setupLog() error {
 func setupExtensions() *extension.Extensions {
 	err := extension.Setup()
 	terror.MustNil(err)
-	if config.GetGlobalConfig().DisaggregatedTiFlash {
-		err = tiflashcompute.InitGlobalTopoFetcher(
-			config.GetGlobalConfig().TiFlashComputeAutoScalerType,
-			config.GetGlobalConfig().TiFlashComputeAutoScalerAddr,
-			config.GetGlobalConfig().KeyspaceName,
-			config.GetGlobalConfig().IsTiFlashComputeFixedPool)
-		terror.MustNil(err)
-	}
 
 	extensions, err := extension.GetExtensions()
 	terror.MustNil(err)

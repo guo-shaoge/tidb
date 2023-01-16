@@ -288,6 +288,12 @@ func (f *AWSTopoFetcher) FetchAndGetTopo() (curTopo []string, err error) {
 	}()
 
 	if f.isFixedPool {
+		// todo: delete this when AssureAndGetTopo() is done.
+		curTopo, _ = f.getTopo()
+		if len(curTopo) != 0 {
+			return curTopo, nil
+		}
+
 		if err = f.fetchFixedPoolTopo(); err != nil {
 			return nil, err
 		}
