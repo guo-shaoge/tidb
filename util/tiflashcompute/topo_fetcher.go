@@ -259,13 +259,12 @@ type AWSTopoFetcher struct {
 	isFixedPool bool
 }
 
-// todo: check if ok.
-type resumeAndGetTopo struct {
-	hasErr    bool     `json:"hasErr"`
+type resumeAndGetTopologyResult struct {
+	hasError  int      `json:"hasError"`
 	errorInfo string   `json:"errorInfo"`
 	state     string   `json:"state"`
 	topology  []string `json:"topology"`
-	timestamp int64    `json:"timestamp"`
+	timestamp string   `json:"timestamp"`
 }
 
 // NewAWSAutoScalerFetcher create a new AWSTopoFetcher.
@@ -312,7 +311,7 @@ func (f *AWSTopoFetcher) FetchAndGetTopo() (curTopo []string, err error) {
 	return curTopo, nil
 }
 
-func awsHTTPGetAndParseResp(url string) (*resumeAndGetTopo, error) {
+func awsHTTPGetAndParseResp(url string) (*resumeAndGetTopologyResult, error) {
 	resp, err := http.Get(url)
 	if err != nil {
 		return nil, errors.Trace(err)
@@ -328,7 +327,7 @@ func awsHTTPGetAndParseResp(url string) (*resumeAndGetTopo, error) {
 		return nil, errors.Errorf("http get mock AutoScaler failed. url: %s, status code: %s, http resp body: %s", url, http.StatusText(resp.StatusCode), bStr)
 	}
 
-	res := &resumeAndGetTopo{}
+	res := &resumeAndGetTopologyResult{}
 	if err = json.Unmarshal(b, &res); err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -337,27 +336,28 @@ func awsHTTPGetAndParseResp(url string) (*resumeAndGetTopo, error) {
 	return res, nil
 }
 
-func (f *AWSTopoFetcher) tryUpdateTopo(newTopo *resumeAndGetTopo) (updated bool) {
+func (f *AWSTopoFetcher) tryUpdateTopo(newTopo *resumeAndGetTopologyResult) (updated bool, err error) {
 	cachedTopo, cachedTS := f.getTopo()
+	newTS, err := strconv.ParseInt(newTopo.timestamp, 10, 64)
 	defer func() {
 		logutil.BgLogger().Info("try update topo", zap.Any("updated", updated),
 			zap.Any("cached TS", cachedTS), zap.Any("cached Topo", cachedTopo),
-			zap.Any("fetch TS", newTopo.timestamp), zap.Any("fetch topo", newTopo.topology))
+			zap.Any("fetch TS", newTopo.timestamp), zap.Any("converted TS", newTS), zap.Any("fetch topo", newTopo.topology))
 	}()
-	// todo: >= ?
-	if cachedTS > newTopo.timestamp {
+
+	if cachedTS >= newTS {
 		return
 	}
 
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	cachedTS = f.mu.topoTS
-	if cachedTS > newTopo.timestamp {
+	if cachedTS > newTS {
 		return
 	}
 	updated = true
 	f.mu.topo = newTopo.topology
-	f.mu.topoTS = newTopo.timestamp
+	f.mu.topoTS = newTS
 	return
 }
 
@@ -375,7 +375,10 @@ func (f *AWSTopoFetcher) fetchFixedPoolTopo() error {
 		return err
 	}
 
-	f.tryUpdateTopo(newTopo)
+	_, err = f.tryUpdateTopo(newTopo)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -396,7 +399,10 @@ func (f *AWSTopoFetcher) fetchTopo() error {
 		return err
 	}
 
-	f.tryUpdateTopo(newTopo)
+	_, err = f.tryUpdateTopo(newTopo)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
