@@ -55,6 +55,9 @@ const (
 const (
 	// DefAWSAutoScalerAddr is the default address for AWS AutoScaler.
 	DefAWSAutoScalerAddr = "tiflash-autoscale-lb.tiflash-autoscale.svc.cluster.local:8081"
+	// DefASStr default AutoScaler.
+	DefASStr = AWSASStr
+
 	awsFixedPoolHTTPPath = "sharedfixedpool"
 	awsFetchHTTPPath     = "resume-and-get-topology"
 )

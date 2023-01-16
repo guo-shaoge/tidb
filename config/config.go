@@ -297,7 +297,7 @@ type Config struct {
 	DisaggregatedTiFlash         bool   `toml:"disaggregated-tiflash" json:"disaggregated-tiflash"`
 	TiFlashComputeAutoScalerType string `toml:"autoscaler-type" json:"autoscaler-type"`
 	TiFlashComputeAutoScalerAddr string `toml:"autoscaler-addr" json:"autoscaler-addr"`
-	IsTiFlashComputeFixedPool    bool   `toml:"is-compute-fixed-pool" json:"is-compute-fixed-pool"`
+	IsTiFlashComputeFixedPool    bool   `toml:"is-tiflashcompute-fixed-pool" json:"is-tiflashcompute-fixed-pool"`
 
 	// TiDBMaxReuseChunk indicates max cached chunk num
 	TiDBMaxReuseChunk uint32 `toml:"tidb-max-reuse-chunk" json:"tidb-max-reuse-chunk"`
@@ -1009,12 +1009,13 @@ var defaultConf = Config{
 	EnableGlobalKill:                     true,
 	TrxSummary:                           DefaultTrxSummary(),
 	DisaggregatedTiFlash:                 false,
+	TiFlashComputeAutoScalerType:         tiflashcompute.DefASStr,
+	TiFlashComputeAutoScalerAddr:         tiflashcompute.DefAWSAutoScalerAddr,
+	IsTiFlashComputeFixedPool:            false,
 	TiDBMaxReuseChunk:                    64,
 	TiDBMaxReuseColumn:                   256,
 	EnableAnalyze:                        true,
 	Ratelimit:                            defaultRatelimitConfig(),
-	TiFlashComputeAutoScalerType:         tiflashcompute.AWSASStr,
-	TiFlashComputeAutoScalerAddr:         tiflashcompute.DefAWSAutoScalerAddr,
 }
 
 var (

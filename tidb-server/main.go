@@ -258,7 +258,7 @@ func main() {
 			config.GetGlobalConfig().TiFlashComputeAutoScalerAddr,
 			config.GetGlobalConfig().KeyspaceName,
 			config.GetGlobalConfig().IsTiFlashComputeFixedPool)
-		terror.MustNil(err)
+		mainErrHandler(err)
 	}
 
 	err = cpuprofile.StartCPUProfiler()
