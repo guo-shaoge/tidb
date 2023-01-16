@@ -287,15 +287,18 @@ type Config struct {
 	OOMUseTmpStorage bool `toml:"oom-use-tmp-storage" json:"oom-use-tmp-storage"`
 
 	// These items are deprecated because they are turned into instance system variables.
-	CheckMb4ValueInUTF8          AtomicBool `toml:"check-mb4-value-in-utf8" json:"check-mb4-value-in-utf8"`
-	EnableCollectExecutionInfo   bool       `toml:"enable-collect-execution-info" json:"enable-collect-execution-info"`
-	Plugin                       Plugin     `toml:"plugin" json:"plugin"`
-	MaxServerConnections         uint32     `toml:"max-server-connections" json:"max-server-connections"`
-	RunDDL                       bool       `toml:"run-ddl" json:"run-ddl"`
-	DisaggregatedTiFlash         bool       `toml:"disaggregated-tiflash" json:"disaggregated-tiflash"`
-	TiFlashComputeAutoScalerType string     `toml:"autoscaler-type" json:"autoscaler-type"`
-	TiFlashComputeAutoScalerAddr string     `toml:"autoscaler-addr" json:"autoscaler-addr"`
-	IsTiFlashComputeFixedPool    bool       `toml:"is-compute-fixed-pool" json:"is-compute-fixed-pool"`
+	CheckMb4ValueInUTF8        AtomicBool `toml:"check-mb4-value-in-utf8" json:"check-mb4-value-in-utf8"`
+	EnableCollectExecutionInfo bool       `toml:"enable-collect-execution-info" json:"enable-collect-execution-info"`
+	Plugin                     Plugin     `toml:"plugin" json:"plugin"`
+	MaxServerConnections       uint32     `toml:"max-server-connections" json:"max-server-connections"`
+	RunDDL                     bool       `toml:"run-ddl" json:"run-ddl"`
+
+	// These config is related to disaggregated-tiflash mode.
+	DisaggregatedTiFlash         bool   `toml:"disaggregated-tiflash" json:"disaggregated-tiflash"`
+	TiFlashComputeAutoScalerType string `toml:"autoscaler-type" json:"autoscaler-type"`
+	TiFlashComputeAutoScalerAddr string `toml:"autoscaler-addr" json:"autoscaler-addr"`
+	IsTiFlashComputeFixedPool    bool   `toml:"is-compute-fixed-pool" json:"is-compute-fixed-pool"`
+
 	// TiDBMaxReuseChunk indicates max cached chunk num
 	TiDBMaxReuseChunk uint32 `toml:"tidb-max-reuse-chunk" json:"tidb-max-reuse-chunk"`
 	// TiDBMaxReuseColumn indicates max cached column num
