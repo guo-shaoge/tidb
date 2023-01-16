@@ -53,6 +53,7 @@ const (
 )
 
 const (
+	DefAWSAutoScalerAddr = "tiflash-autoscale-lb.tiflash-autoscale.svc.cluster.local:8081"
 	awsFixedPoolHTTPPath = "sharedfixedpool"
 	awsFetchHTTPPath     = "resume-and-get-topology"
 )

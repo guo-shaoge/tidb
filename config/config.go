@@ -1010,6 +1010,8 @@ var defaultConf = Config{
 	TiDBMaxReuseColumn:                   256,
 	EnableAnalyze:                        true,
 	Ratelimit:                            defaultRatelimitConfig(),
+	TiFlashComputeAutoScalerType:         tiflashcompute.AWSASStr,
+	TiFlashComputeAutoScalerAddr:         tiflashcompute.DefAWSAutoScalerAddr,
 }
 
 var (
