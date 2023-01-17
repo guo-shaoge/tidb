@@ -652,7 +652,9 @@ func buildBatchCopTasksConsistentHash(bo *backoff.Backoffer,
 		if err != nil {
 			return nil, err
 		}
-		stores := filterAliveStoresStr(bo.GetCtx(), storesStr, mppStoreLastFailTime, ttl, kvStore)
+		stores := storesStr
+		// todo: refine this
+		// stores := filterAliveStoresStr(bo.GetCtx(), storesStr, mppStoreLastFailTime, ttl, kvStore)
 		if len(stores) == 0 {
 			return nil, errors.New("tiflash_compute node is unavailable")
 		}

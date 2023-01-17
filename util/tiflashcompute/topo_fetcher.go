@@ -260,11 +260,11 @@ type AWSTopoFetcher struct {
 }
 
 type resumeAndGetTopologyResult struct {
-	hasError  int      `json:"hasError"`
-	errorInfo string   `json:"errorInfo"`
-	state     string   `json:"state"`
-	topology  []string `json:"topology"`
-	timestamp string   `json:"timestamp"`
+	HasError  int      `json:"hasError"`
+	ErrorInfo string   `json:"errorInfo"`
+	State     string   `json:"state"`
+	Topology  []string `json:"topology"`
+	Timestamp string   `json:"timestamp"`
 }
 
 // NewAWSAutoScalerFetcher create a new AWSTopoFetcher.
@@ -338,12 +338,15 @@ func awsHTTPGetAndParseResp(url string) (*resumeAndGetTopologyResult, error) {
 
 func (f *AWSTopoFetcher) tryUpdateTopo(newTopo *resumeAndGetTopologyResult) (updated bool, err error) {
 	cachedTopo, cachedTS := f.getTopo()
-	newTS, err := strconv.ParseInt(newTopo.timestamp, 10, 64)
+	newTS, err := strconv.ParseInt(newTopo.Timestamp, 10, 64)
 	defer func() {
-		logutil.BgLogger().Info("try update topo", zap.Any("updated", updated),
+		logutil.BgLogger().Info("try update topo", zap.Any("updated", updated), zap.Any("err", err),
 			zap.Any("cached TS", cachedTS), zap.Any("cached Topo", cachedTopo),
-			zap.Any("fetch TS", newTopo.timestamp), zap.Any("converted TS", newTS), zap.Any("fetch topo", newTopo.topology))
+			zap.Any("fetch TS", newTopo.Timestamp), zap.Any("converted TS", newTS), zap.Any("fetch topo", newTopo.Topology))
 	}()
+	if err != nil {
+		return updated, errors.Errorf("parse newTopo.timestamp failed when update topo: %s", err.Error())
+	}
 
 	if cachedTS >= newTS {
 		return
@@ -356,7 +359,7 @@ func (f *AWSTopoFetcher) tryUpdateTopo(newTopo *resumeAndGetTopologyResult) (upd
 		return
 	}
 	updated = true
-	f.mu.topo = newTopo.topology
+	f.mu.topo = newTopo.Topology
 	f.mu.topoTS = newTS
 	return
 }
