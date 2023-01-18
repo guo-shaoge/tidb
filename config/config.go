@@ -308,6 +308,8 @@ type Config struct {
 	EnableAnalyze bool `toml:"enable-analyze" json:"enable-analyze"`
 	// Ratelimit is used to control the rate limit of the tenant requests.
 	Ratelimit RatelimitConfig `toml:"ratelimit" json:"ratelimit"`
+	// SkipGCDropTable is used to control whether to skip keyspace gc drop table range in gc worker.
+	SkipGCDropTable bool `toml:"skip-gc-drop-table" json:"skip-gc-drop-table"`
 }
 
 // UpdateTempStoragePath is to update the `TempStoragePath` if port/statusPort was changed
@@ -1008,6 +1010,7 @@ var defaultConf = Config{
 	NewCollationsEnabledOnFirstBootstrap: true,
 	EnableGlobalKill:                     true,
 	TrxSummary:                           DefaultTrxSummary(),
+	SkipGCDropTable:                      true,
 	DisaggregatedTiFlash:                 false,
 	TiFlashComputeAutoScalerType:         tiflashcompute.DefASStr,
 	TiFlashComputeAutoScalerAddr:         tiflashcompute.DefAWSAutoScalerAddr,

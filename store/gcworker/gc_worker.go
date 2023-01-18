@@ -85,6 +85,7 @@ type GCWorker struct {
 
 // NewGCWorker creates a GCWorker instance.
 func NewGCWorker(store kv.Storage, pdClient pd.Client) (*GCWorker, error) {
+
 	ver, err := store.CurrentVersion(kv.GlobalTxnScope)
 	if err != nil {
 		return nil, errors.Trace(err)
@@ -810,6 +811,12 @@ func (w *GCWorker) deleteRanges(ctx context.Context, safePoint uint64, concurren
 	startTime := time.Now()
 	for _, r := range ranges {
 		startKey, endKey := r.Range()
+
+		logutil.Logger(ctx).Info("[gc worker] delete range info",
+			zap.Stringer("startKey Stringer", startKey),
+			zap.Stringer("endKey Stringer", endKey),
+			zap.Uint64("safepoint", safePoint),
+		)
 
 		err = w.doUnsafeDestroyRangeRequest(ctx, startKey, endKey, concurrency)
 		failpoint.Inject("ignoreDeleteRangeFailed", func() {
@@ -2115,8 +2122,6 @@ func (w *GCWorker) doGCPlacementRules(se session.Session, safePoint uint64, dr u
 		}
 		// Delete pd rule
 		failpoint.Inject("gcDeletePlacementRuleCounter", func() {})
-		logutil.BgLogger().Info("try delete TiFlash pd rule",
-			zap.Int64("tableID", id), zap.String("endKey", string(dr.EndKey)), zap.Uint64("safePoint", safePoint))
 		ruleID := fmt.Sprintf("table-%v-r", id)
 		ruleID = infosync.MakeRuleID(w.store.GetCodec(), ruleID)
 		logutil.BgLogger().Info("try delete TiFlash pd rule",
