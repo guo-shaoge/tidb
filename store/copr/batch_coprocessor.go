@@ -660,6 +660,7 @@ func buildBatchCopTasksConsistentHash(bo *backoff.Backoffer,
 			if err != nil {
 				return nil, errors.Trace(err)
 			}
+			time.Sleep(30 * time.Second)
 			continue
 		}
 		break
