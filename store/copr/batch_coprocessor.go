@@ -665,10 +665,11 @@ func buildBatchCopTasksConsistentHash(
 			return nil, err
 		}
 		if len(storesStr) == 0 {
+			retErr := errors.New("Cannot find proper topo from AutoScaler")
 			logutil.BgLogger().Info("buildBatchCopTasksConsistentHash retry because FetchAndGetTopo return empty topo", zap.Int("retryNum", retryNum))
-			err := fetchTopoBo.Backoff(tikv.BoTiFlashRPC(), errors.New("Cannot find proper topo from AutoScaler"))
+			err := fetchTopoBo.Backoff(tikv.BoTiFlashRPC(), retErr)
 			if err != nil {
-				return nil, errors.Trace(err)
+				return nil, retErr
 			}
 			continue
 		}

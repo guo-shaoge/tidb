@@ -39,6 +39,8 @@ const (
 	AWSASStr = "aws"
 	// GCPASStr is String value for mock AutoScaler.
 	GCPASStr = "gcp"
+	// TestASStr is String value for test AutoScaler.
+	TestASStr = "test"
 )
 
 const (
@@ -48,6 +50,8 @@ const (
 	AWSASType
 	// GCPASType is int value for mock AutoScaler.
 	GCPASType
+	// TestASType is for local tidb test AutoScaler.
+	TestASType
 	// InvalidASType is int value for invalid check.
 	InvalidASType
 )
@@ -69,6 +73,7 @@ const (
 //  1. MockAutoScaler: Normally for test, can run in local environment.
 //  2. AWSAutoScaler: AutoScaler runs on AWS.
 //  3. GCPAutoScaler: AutoScaler runs on GCP.
+//  4. TestAutoScaler: AutoScaler just for unit test.
 type TopoFetcher interface {
 	// Return tiflash compute topo cache, if topo is empty, will fetch topo from AutoScaler.
 	// If topo is empty after fetch, will return error.
@@ -88,13 +93,15 @@ func GetAutoScalerType(typ string) int {
 		return AWSASType
 	case GCPASStr:
 		return GCPASType
+	case TestASStr:
+		return TestASType
 	default:
 		return InvalidASType
 	}
 }
 
 // InitGlobalTopoFetcher init globalTopoFetcher if is in disaggregated-tiflash mode. It's not thread-safe.
-func InitGlobalTopoFetcher(typ string, addr string, clusterID string, isFixedPool bool) error {
+func InitGlobalTopoFetcher(typ string, addr string, clusterID string, isFixedPool bool) (err error) {
 	logutil.BgLogger().Info("globalTopoFetcher inited", zap.Any("type", typ), zap.Any("addr", addr),
 		zap.Any("clusterID", clusterID), zap.Any("isFixedPool", isFixedPool))
 
@@ -102,15 +109,18 @@ func InitGlobalTopoFetcher(typ string, addr string, clusterID string, isFixedPoo
 	switch ft {
 	case MockASType:
 		globalTopoFetcher = NewMockAutoScalerFetcher(addr)
-		return nil
 	case AWSASType:
 		globalTopoFetcher = NewAWSAutoScalerFetcher(addr, clusterID, isFixedPool)
-		return nil
 	case GCPASType:
-		return errors.Errorf("topo fetch not implemented yet(%s)", typ)
+		err = errors.Errorf("topo fetch not implemented yet(%s)", typ)
+	case TestASType:
+		globalTopoFetcher = NewTestAutoScalerFetcher()
+		return nil
+	default:
+		err = errors.Errorf("unexpected topo fetch type. expect: %s or %s or %s, got %s",
+			MockASStr, AWSASStr, GCPASStr, typ)
 	}
-	return errors.Errorf("unexpected topo fetch type. expect: %s or %s or %s, got %s",
-		MockASStr, AWSASStr, GCPASStr, typ)
+	return err
 }
 
 // GetGlobalTopoFetcher return global topo fetcher, not thread safe.
@@ -415,4 +425,22 @@ func (f *AWSTopoFetcher) getTopo() ([]string, int64) {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 	return f.mu.topo, f.mu.topoTS
+}
+
+// TestTopoFetcher will return empty topo list, just for unit test.
+type TestTopoFetcher struct{}
+
+// NewTestAutoScalerFetcher returns TestTopoFetcher.
+func NewTestAutoScalerFetcher() *TestTopoFetcher {
+	return &TestTopoFetcher{}
+}
+
+// AssureAndGetTopo implements TopoFetcher interface.
+func (f *TestTopoFetcher) AssureAndGetTopo() ([]string, error) {
+	return []string{}, nil
+}
+
+// FetchAndGetTopo implements TopoFetcher interface.
+func (f *TestTopoFetcher) FetchAndGetTopo() ([]string, error) {
+	return []string{}, nil
 }
