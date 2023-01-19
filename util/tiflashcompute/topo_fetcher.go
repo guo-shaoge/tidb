@@ -1,4 +1,4 @@
-// Copyright 2015 PingCAP, Inc.
+// Copyright 2023 PingCAP, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -31,15 +31,16 @@ import (
 var globalTopoFetcher TopoFetcher
 var _ TopoFetcher = &MockTopoFetcher{}
 var _ TopoFetcher = &AWSTopoFetcher{}
+var _ TopoFetcher = &TestTopoFetcher{}
 
 const (
-	// MockASStr is String value for mock AutoScaler.
+	// MockASStr is string value for mock AutoScaler.
 	MockASStr = "mock"
-	// AWSASStr is String value for mock AutoScaler.
+	// AWSASStr is string value for mock AutoScaler.
 	AWSASStr = "aws"
-	// GCPASStr is String value for mock AutoScaler.
+	// GCPASStr is string value for mock AutoScaler.
 	GCPASStr = "gcp"
-	// TestASStr is String value for test AutoScaler.
+	// TestASStr is string value for test AutoScaler.
 	TestASStr = "test"
 )
 
@@ -61,8 +62,6 @@ const (
 	DefAWSAutoScalerAddr = "tiflash-autoscale-lb.tiflash-autoscale.svc.cluster.local:8081"
 	// DefASStr default AutoScaler.
 	DefASStr = AWSASStr
-	// TopoFetcherMaxBackoff defines the max backoff when get topo from AutoScaler.
-	TopoFetcherMaxBackoff = 30000
 
 	awsFixedPoolHTTPPath = "sharedfixedpool"
 	awsFetchHTTPPath     = "resume-and-get-topology"
@@ -102,7 +101,7 @@ func GetAutoScalerType(typ string) int {
 
 // InitGlobalTopoFetcher init globalTopoFetcher if is in disaggregated-tiflash mode. It's not thread-safe.
 func InitGlobalTopoFetcher(typ string, addr string, clusterID string, isFixedPool bool) (err error) {
-	logutil.BgLogger().Info("globalTopoFetcher inited", zap.Any("type", typ), zap.Any("addr", addr),
+	logutil.BgLogger().Info("init globalTopoFetcher", zap.Any("type", typ), zap.Any("addr", addr),
 		zap.Any("clusterID", clusterID), zap.Any("isFixedPool", isFixedPool))
 
 	ft := GetAutoScalerType(typ)
@@ -115,7 +114,6 @@ func InitGlobalTopoFetcher(typ string, addr string, clusterID string, isFixedPoo
 		err = errors.Errorf("topo fetch not implemented yet(%s)", typ)
 	case TestASType:
 		globalTopoFetcher = NewTestAutoScalerFetcher()
-		return nil
 	default:
 		err = errors.Errorf("unexpected topo fetch type. expect: %s or %s or %s, got %s",
 			MockASStr, AWSASStr, GCPASStr, typ)
@@ -291,7 +289,7 @@ func NewAWSAutoScalerFetcher(addr string, clusterID string, isFixed bool) *AWSTo
 }
 
 // AssureAndGetTopo implements TopoFetcher interface.
-func (f *AWSTopoFetcher) AssureAndGetTopo() ([]string, error) {
+func (*AWSTopoFetcher) AssureAndGetTopo() ([]string, error) {
 	return nil, errors.New("AWSTopoFetcher AssureAndGetTopo not implemented")
 }
 
@@ -436,11 +434,11 @@ func NewTestAutoScalerFetcher() *TestTopoFetcher {
 }
 
 // AssureAndGetTopo implements TopoFetcher interface.
-func (f *TestTopoFetcher) AssureAndGetTopo() ([]string, error) {
+func (*TestTopoFetcher) AssureAndGetTopo() ([]string, error) {
 	return []string{}, nil
 }
 
 // FetchAndGetTopo implements TopoFetcher interface.
-func (f *TestTopoFetcher) FetchAndGetTopo() ([]string, error) {
+func (*TestTopoFetcher) FetchAndGetTopo() ([]string, error) {
 	return []string{}, nil
 }

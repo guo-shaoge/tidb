@@ -1336,7 +1336,7 @@ func (c *Config) Valid() error {
 		return fmt.Errorf("can't set standby and keyspace-activate mode at the same time")
 	}
 
-	// check tiflash_compute topo fetch is valid.
+	// Check tiflash_compute topo fetch is valid.
 	if c.DisaggregatedTiFlash {
 		if tiflashcompute.GetAutoScalerType(c.TiFlashComputeAutoScalerType) == tiflashcompute.InvalidASType {
 			return fmt.Errorf("invalid AutoScaler type, expect %s, %s or %s, got %s",

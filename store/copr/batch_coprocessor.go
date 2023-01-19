@@ -47,7 +47,7 @@ import (
 
 const (
 	detectTimeoutLimit  = 2 * time.Second
-	fetchTopoMaxBackoff = 30000
+	fetchTopoMaxBackoff = 20000
 )
 
 // batchCopTask comprises of multiple copTask that will send to same store.
@@ -587,7 +587,7 @@ func filterAliveStoresHelper(ctx context.Context, stores []string, mppStoreLastF
 
 			mu.Lock()
 			defer mu.Unlock()
-			aliveIdx = append(aliveIdx, i)
+			aliveIdx = append(aliveIdx, idx)
 		}(i)
 	}
 	wg.Wait()
@@ -660,6 +660,7 @@ func buildBatchCopTasksConsistentHash(
 
 	for {
 		retryNum++
+		// todo: use AssureAndGetTopo() after SNS is done.
 		storesStr, err = tiflashcompute.GetGlobalTopoFetcher().FetchAndGetTopo()
 		if err != nil {
 			return nil, err
@@ -688,11 +689,11 @@ func buildBatchCopTasksConsistentHash(
 		regionInfo := RegionInfo{
 			// tasks and rpcCtxs are correspond to each other.
 			Region: tasks[i].region,
-			// todo: no need
-			// Meta:           rpcCtx.Meta,
 			Ranges: tasks[i].ranges,
-			// AllStores:      []uint64{rpcCtx.Store.StoreID()},
 			PartitionIndex: tasks[i].partitionIndex,
+			// No need to setup regionMeta and Store info.
+			// Meta:           rpcCtx.Meta,
+			// AllStores:      []uint64{rpcCtx.Store.StoreID()},
 		}
 		if batchTask, ok := taskMap[rpcCtx.Addr]; ok {
 			batchTask.regionInfos = append(batchTask.regionInfos, regionInfo)
