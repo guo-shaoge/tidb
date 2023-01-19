@@ -45,7 +45,10 @@ import (
 	"golang.org/x/exp/slices"
 )
 
-const detectTimeoutLimit = 2 * time.Second
+const (
+	detectTimeoutLimit  = 2 * time.Second
+	fetchTopoMaxBackoff = 30000
+)
 
 // batchCopTask comprises of multiple copTask that will send to same store.
 type batchCopTask struct {
@@ -484,7 +487,9 @@ func balanceBatchCopTask(ctx context.Context, kvStore *kvStore, originalTasks []
 	return ret
 }
 
-func buildBatchCopTasksForNonPartitionedTable(bo *backoff.Backoffer,
+func buildBatchCopTasksForNonPartitionedTable(
+	ctx context.Context,
+	bo *backoff.Backoffer,
 	store *kvStore,
 	ranges *KeyRanges,
 	storeType kv.StoreType,
@@ -493,12 +498,14 @@ func buildBatchCopTasksForNonPartitionedTable(bo *backoff.Backoffer,
 	balanceWithContinuity bool,
 	balanceContinuousRegionCount int64) ([]*batchCopTask, error) {
 	if config.GetGlobalConfig().DisaggregatedTiFlash {
-		return buildBatchCopTasksConsistentHash(bo, store, []*KeyRanges{ranges}, storeType, mppStoreLastFailTime, ttl)
+		return buildBatchCopTasksConsistentHash(ctx, bo, store, []*KeyRanges{ranges}, storeType, mppStoreLastFailTime, ttl)
 	}
 	return buildBatchCopTasksCore(bo, store, []*KeyRanges{ranges}, storeType, mppStoreLastFailTime, ttl, balanceWithContinuity, balanceContinuousRegionCount)
 }
 
-func buildBatchCopTasksForPartitionedTable(bo *backoff.Backoffer,
+func buildBatchCopTasksForPartitionedTable(
+	ctx context.Context,
+	bo *backoff.Backoffer,
 	store *kvStore,
 	rangesForEachPhysicalTable []*KeyRanges,
 	storeType kv.StoreType,
@@ -508,7 +515,7 @@ func buildBatchCopTasksForPartitionedTable(bo *backoff.Backoffer,
 	balanceContinuousRegionCount int64,
 	partitionIDs []int64) (batchTasks []*batchCopTask, err error) {
 	if config.GetGlobalConfig().DisaggregatedTiFlash {
-		batchTasks, err = buildBatchCopTasksConsistentHash(bo, store, rangesForEachPhysicalTable, storeType, mppStoreLastFailTime, ttl)
+		batchTasks, err = buildBatchCopTasksConsistentHash(ctx, bo, store, rangesForEachPhysicalTable, storeType, mppStoreLastFailTime, ttl)
 	} else {
 		batchTasks, err = buildBatchCopTasksCore(bo, store, rangesForEachPhysicalTable, storeType, mppStoreLastFailTime, ttl, balanceWithContinuity, balanceContinuousRegionCount)
 	}
@@ -614,7 +621,9 @@ func getTiFlashComputeRPCContextByConsistentHash(ids []tikv.RegionVerID, storesS
 // 1. Split range by region location to build copTasks.
 // 2. For each copTask build its rpcCtx , the target tiflash_compute node will be chosen using consistent hash.
 // 3. All copTasks that will be sent to one tiflash_compute node are put in one batchCopTask.
-func buildBatchCopTasksConsistentHash(bo *backoff.Backoffer,
+func buildBatchCopTasksConsistentHash(
+	ctx context.Context,
+	bo *backoff.Backoffer,
 	kvStore *kvStore,
 	rangesForEachPhysicalTable []*KeyRanges,
 	storeType kv.StoreType,
@@ -622,6 +631,7 @@ func buildBatchCopTasksConsistentHash(bo *backoff.Backoffer,
 	ttl time.Duration) (res []*batchCopTask, err error) {
 	const cmdType = tikvrpc.CmdBatchCop
 	cache := kvStore.GetRegionCache()
+	fetchTopoBo := backoff.NewBackofferWithVars(ctx, fetchTopoMaxBackoff, nil)
 
 	var retryNum int
 	var rangesLen int
@@ -656,21 +666,14 @@ func buildBatchCopTasksConsistentHash(bo *backoff.Backoffer,
 		}
 		if len(storesStr) == 0 {
 			logutil.BgLogger().Info("buildBatchCopTasksConsistentHash retry because FetchAndGetTopo return empty topo", zap.Int("retryNum", retryNum))
-			err := bo.Backoff(tikv.BoTiFlashRPC(), errors.New("Cannot find proper topo from AutoScaler"))
+			err := fetchTopoBo.Backoff(tikv.BoTiFlashRPC(), errors.New("Cannot find proper topo from AutoScaler"))
 			if err != nil {
 				return nil, errors.Trace(err)
 			}
-			time.Sleep(30 * time.Second)
 			continue
 		}
 		break
 	}
-	// stores := storesStr
-	// todo: refine this
-	// stores := filterAliveStoresStr(bo.GetCtx(), storesStr, mppStoreLastFailTime, ttl, kvStore)
-	// if len(stores) == 0 {
-	// 	return nil, errors.New("tiflash_compute node is unavailable")
-	// }
 
 	rpcCtxs, err := getTiFlashComputeRPCContextByConsistentHash(regionIDs, storesStr)
 	if err != nil {
@@ -859,10 +862,10 @@ func (c *CopClient) sendBatch(ctx context.Context, req *kv.Request, vars *tikv.V
 			keyRanges = append(keyRanges, NewKeyRanges(pi.KeyRanges))
 			partitionIDs = append(partitionIDs, pi.ID)
 		}
-		tasks, err = buildBatchCopTasksForPartitionedTable(bo, c.store.kvStore, keyRanges, req.StoreType, nil, 0, false, 0, partitionIDs)
+		tasks, err = buildBatchCopTasksForPartitionedTable(ctx, bo, c.store.kvStore, keyRanges, req.StoreType, nil, 0, false, 0, partitionIDs)
 	} else {
 		ranges := NewKeyRanges(req.KeyRanges)
-		tasks, err = buildBatchCopTasksForNonPartitionedTable(bo, c.store.kvStore, ranges, req.StoreType, nil, 0, false, 0)
+		tasks, err = buildBatchCopTasksForNonPartitionedTable(ctx, bo, c.store.kvStore, ranges, req.StoreType, nil, 0, false, 0)
 	}
 
 	if err != nil {
@@ -1009,7 +1012,7 @@ func (b *batchCopIterator) retryBatchCopTask(ctx context.Context, bo *backoff.Ba
 				ranges = append(ranges, *ran)
 			})
 		}
-		ret, err := buildBatchCopTasksForNonPartitionedTable(bo, b.store, NewKeyRanges(ranges), b.req.StoreType, nil, 0, false, 0)
+		ret, err := buildBatchCopTasksForNonPartitionedTable(ctx, bo, b.store, NewKeyRanges(ranges), b.req.StoreType, nil, 0, false, 0)
 		return ret, err
 	}
 	// Retry Partition Table Scan
@@ -1028,7 +1031,7 @@ func (b *batchCopIterator) retryBatchCopTask(ctx context.Context, bo *backoff.Ba
 		}
 		keyRanges = append(keyRanges, NewKeyRanges(ranges))
 	}
-	ret, err := buildBatchCopTasksForPartitionedTable(bo, b.store, keyRanges, b.req.StoreType, nil, 0, false, 0, pid)
+	ret, err := buildBatchCopTasksForPartitionedTable(ctx, bo, b.store, keyRanges, b.req.StoreType, nil, 0, false, 0, pid)
 	return ret, err
 }
 

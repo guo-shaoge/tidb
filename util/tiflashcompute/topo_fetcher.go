@@ -57,6 +57,8 @@ const (
 	DefAWSAutoScalerAddr = "tiflash-autoscale-lb.tiflash-autoscale.svc.cluster.local:8081"
 	// DefASStr default AutoScaler.
 	DefASStr = AWSASStr
+	// TopoFetcherMaxBackoff defines the max backoff when get topo from AutoScaler.
+	TopoFetcherMaxBackoff = 30000
 
 	awsFixedPoolHTTPPath = "sharedfixedpool"
 	awsFetchHTTPPath     = "resume-and-get-topology"
