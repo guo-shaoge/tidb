@@ -23,8 +23,10 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/pingcap/tidb/errno"
 	"github.com/pingcap/errors"
 	"github.com/pingcap/tidb/util/logutil"
+	"github.com/pingcap/tidb/util/dbterror"
 	"go.uber.org/zap"
 )
 
@@ -66,6 +68,12 @@ const (
 	awsFixedPoolHTTPPath = "sharedfixedpool"
 	awsFetchHTTPPath     = "resume-and-get-topology"
 )
+
+const (
+	httpGetFailedErrMsg = "get tiflash_compute topology failed"
+	parseTopoTSFailedErrMsg = "parse timestamp of tiflash_compute topology failed"
+)
+var errTopoFetcher = dbterror.ClassUtil.NewStd(errno.ErrInternal)
 
 // TopoFetcher is interface for fetching topo from AutoScaler.
 // There are three kinds of AutoScaler for now:
@@ -197,7 +205,7 @@ func (f *MockTopoFetcher) assureTopo(nodeNum int) error {
 	url := u.String()
 	logutil.BgLogger().Info("assureTopo", zap.Any("url", url))
 
-	newTopo, err := httpGetAndParseResp(url)
+	newTopo, err := mockHTTPGetAndParseResp(url)
 	if err != nil {
 		return err
 	}
@@ -218,7 +226,7 @@ func (f *MockTopoFetcher) fetchTopo() error {
 	url := u.String()
 	logutil.BgLogger().Info("fetchTopo", zap.Any("url", url))
 
-	newTopo, err := httpGetAndParseResp(url)
+	newTopo, err := mockHTTPGetAndParseResp(url)
 	if err != nil {
 		return err
 	}
@@ -229,24 +237,38 @@ func (f *MockTopoFetcher) fetchTopo() error {
 	return nil
 }
 
-// httpGetAndParseResp send http get request and parse topo to []string.
-func httpGetAndParseResp(url string) ([]string, error) {
+func httpGetAndParseResp(url string) ([]byte, error) {
 	resp, err := http.Get(url)
 	if err != nil {
-		return nil, errors.Trace(err)
+		logutil.BgLogger().Error(err.Error())
+		return nil, errTopoFetcher.GenWithStackByArgs(httpGetFailedErrMsg)
 	}
 	defer resp.Body.Close()
 
 	b, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return nil, errors.Trace(err)
+		logutil.BgLogger().Error(err.Error())
+		return nil, errTopoFetcher.GenWithStackByArgs(httpGetFailedErrMsg)
 	}
 	bStr := string(b)
 	if resp.StatusCode != http.StatusOK {
-		return nil, errors.Errorf("http get mock AutoScaler failed. url: %s, status code: %s, http resp body: %s", url, http.StatusText(resp.StatusCode), bStr)
+		logutil.BgLogger().Error("http get mock AutoScaler failed", zap.Any("url", url),
+			zap.Any("status code", http.StatusText(resp.StatusCode)),
+			zap.Any("http body", bStr))
+		return nil, errTopoFetcher.GenWithStackByArgs(httpGetFailedErrMsg)
+	}
+	return b, nil
+}
+
+// httpGetAndParseResp send http get request and parse topo to []string.
+func mockHTTPGetAndParseResp(url string) ([]string, error) {
+	b, err := httpGetAndParseResp(url)
+	if err != nil {
+		return nil, err
 	}
 
 	// For MockAutoScaler, topo is like: ip:port;ip:port.
+	bStr := string(b)
 	newTopo := strings.Split(bStr, ";")
 	if len(bStr) == 0 || len(newTopo) == 0 {
 		return nil, errors.New("topo list is empty")
@@ -322,27 +344,18 @@ func (f *AWSTopoFetcher) FetchAndGetTopo() (curTopo []string, err error) {
 }
 
 func awsHTTPGetAndParseResp(url string) (*resumeAndGetTopologyResult, error) {
-	resp, err := http.Get(url)
+	b, err := httpGetAndParseResp(url)
 	if err != nil {
-		return nil, errors.Trace(err)
-	}
-	defer resp.Body.Close()
-
-	b, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, errors.Trace(err)
-	}
-	bStr := string(b)
-	if resp.StatusCode != http.StatusOK {
-		return nil, errors.Errorf("http get mock AutoScaler failed. url: %s, status code: %s, http resp body: %s", url, http.StatusText(resp.StatusCode), bStr)
+		return nil, err
 	}
 
 	res := &resumeAndGetTopologyResult{}
 	if err = json.Unmarshal(b, &res); err != nil {
-		return nil, errors.Trace(err)
+		logutil.BgLogger().Error(err.Error())
+		return nil, errTopoFetcher.GenWithStackByArgs(httpGetFailedErrMsg)
 	}
 
-	logutil.BgLogger().Debug("awsHTTPGetAndParseResp succeed", zap.Any("resp", res))
+	logutil.BgLogger().Info("awsHTTPGetAndParseResp succeed", zap.Any("resp", res))
 	return res, nil
 }
 
@@ -355,7 +368,7 @@ func (f *AWSTopoFetcher) tryUpdateTopo(newTopo *resumeAndGetTopologyResult) (upd
 			zap.Any("fetch TS", newTopo.Timestamp), zap.Any("converted TS", newTS), zap.Any("fetch topo", newTopo.Topology))
 	}()
 	if err != nil {
-		return updated, errors.Errorf("parse newTopo.timestamp failed when update topo: %s", err.Error())
+		return updated, errTopoFetcher.GenWithStackByArgs(parseTopoTSFailedErrMsg)
 	}
 
 	if cachedTS >= newTS {
