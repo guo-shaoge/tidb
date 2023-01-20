@@ -38,9 +38,9 @@ var _ TopoFetcher = &TestTopoFetcher{}
 const (
 	// MockASStr is string value for mock AutoScaler.
 	MockASStr = "mock"
-	// AWSASStr is string value for mock AutoScaler.
+	// AWSASStr is string value for aws AutoScaler.
 	AWSASStr = "aws"
-	// GCPASStr is string value for mock AutoScaler.
+	// GCPASStr is string value for gcp AutoScaler.
 	GCPASStr = "gcp"
 	// TestASStr is string value for test AutoScaler.
 	TestASStr = "test"
@@ -49,9 +49,9 @@ const (
 const (
 	// MockASType is int value for mock AutoScaler.
 	MockASType int = iota
-	// AWSASType is int value for mock AutoScaler.
+	// AWSASType is int value for aws AutoScaler.
 	AWSASType
-	// GCPASType is int value for mock AutoScaler.
+	// GCPASType is int value for gcp AutoScaler.
 	GCPASType
 	// TestASType is for local tidb test AutoScaler.
 	TestASType
