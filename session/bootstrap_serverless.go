@@ -34,17 +34,14 @@ const (
 	// serverlessVersion2 added support for Disaggregated TiFlash, as a result, we can now safely enable mpp
 	// and two previously forbidden executor push-down.
 	serverlessVersion2 = 2
-	// serverlessVersion3 adds json contains to tikv push-down-blacklist.
-	serverlessVersion3 = 3
 )
 
 // currentServerlessVersion is defined as a variable, so we can modify its value for testing.
 // please make sure this is the largest version
-var currentServerlessVersion int64 = serverlessVersion3
+var currentServerlessVersion int64 = serverlessVersion2
 
 var bootstrapServerlessVersion = []func(Session, int64){
 	upgradeToServerlessVer2,
-	upgradeToServerlessVer3,
 }
 
 // updateServerlessVersion updates serverless version variable in mysql.TiDB table.
@@ -131,13 +128,4 @@ func upgradeToServerlessVer2(s Session, ver int64) {
 	// Remove lead/lag from pushdown_blacklist.
 	mustExecute(s, "DELETE FROM mysql.expr_pushdown_blacklist where name in "+
 		"(\"Lead\", \"Lag\") and store_type = \"tiflash\"")
-}
-
-func upgradeToServerlessVer3(s Session, ver int64) {
-	if ver >= serverlessVersion3 {
-		return
-	}
-
-	mustExecute(s, "INSERT HIGH_PRIORITY INTO mysql.expr_pushdown_blacklist VALUES"+
-		"('json_contains','tikv', 'Compatibility with tikv 6.1')")
 }
