@@ -577,15 +577,23 @@ func buildBatchCopTasksConsistentHash(bo *backoff.Backoffer,
 	mppStoreLastFailTime *sync.Map,
 	ttl time.Duration) (res []*batchCopTask, err error) {
 	const cmdType = tikvrpc.CmdBatchCop
-	var retryNum int
+	var (
+		retryNum        int
+		rangesLen       int
+		copTaskNum      int
+		splitKeyElapsed time.Duration
+		getStoreElapsed time.Duration
+	)
 	cache := kvStore.GetRegionCache()
+	start := time.Now()
 
 	for {
 		retryNum++
-		var rangesLen int
+		rangesLen = 0
 		tasks := make([]*copTask, 0)
 		regionIDs := make([]tikv.RegionVerID, 0)
 
+		splitKeyStart := time.Now()
 		for i, ranges := range rangesForEachPhysicalTable {
 			rangesLen += ranges.Len()
 			locations, err := cache.SplitKeyRangesByLocations(bo, ranges)
@@ -603,7 +611,9 @@ func buildBatchCopTasksConsistentHash(bo *backoff.Backoffer,
 				regionIDs = append(regionIDs, lo.Location.Region)
 			}
 		}
+		splitKeyElapsed += time.Since(splitKeyStart)
 
+		getStoreStart := time.Now()
 		stores, err := cache.GetTiFlashComputeStores(bo.TiKVBackoffer())
 		if err != nil {
 			return nil, err
@@ -612,6 +622,7 @@ func buildBatchCopTasksConsistentHash(bo *backoff.Backoffer,
 		if len(stores) == 0 {
 			return nil, errors.New("tiflash_compute node is unavailable")
 		}
+		getStoreElapsed = time.Since(getStoreStart)
 
 		rpcCtxs, err := cache.GetTiFlashComputeRPCContextByConsistentHash(bo.TiKVBackoffer(), regionIDs, stores)
 		if err != nil {
@@ -628,6 +639,7 @@ func buildBatchCopTasksConsistentHash(bo *backoff.Backoffer,
 		if len(rpcCtxs) != len(tasks) {
 			return nil, errors.Errorf("length should be equal, len(rpcCtxs): %v, len(tasks): %v", len(rpcCtxs), len(tasks))
 		}
+		copTaskNum = len(tasks)
 		taskMap := make(map[string]*batchCopTask)
 		for i, rpcCtx := range rpcCtxs {
 			regionInfo := RegionInfo{
@@ -652,9 +664,30 @@ func buildBatchCopTasksConsistentHash(bo *backoff.Backoffer,
 			}
 		}
 		logutil.BgLogger().Info("buildBatchCopTasksConsistentHash done", zap.Any("len(tasks)", len(taskMap)), zap.Any("len(tiflash_compute)", len(stores)))
+		if log.GetLevel() <= zap.DebugLevel {
+			debugStores := make([]string, 0, len(stores))
+			for _, s := range stores {
+				debugStores = append(debugStores, s.GetAddr())
+			}
+			debugTaskMap := make(map[string]string, len(taskMap))
+			for s, b := range taskMap {
+				debugTaskMap[s] = fmt.Sprintf("addr: %s; regionInfos: %v", b.storeAddr, b.regionInfos)
+			}
+			logutil.BgLogger().Debug("detailed info buildBatchCopTasksConsistentHash", zap.Any("taskMap", debugTaskMap), zap.Any("allStores", debugStores))
+		}
 		break
 	}
 
+	if elapsed := time.Since(start); elapsed > time.Millisecond*500 {
+		logutil.BgLogger().Warn("buildBatchCopTasksConsistentHash takes too much time",
+			zap.Duration("total elapsed", elapsed),
+			zap.Int("retryNum", retryNum),
+			zap.Duration("splitKeyElapsed", splitKeyElapsed),
+			zap.Duration("getStoreElapsed", getStoreElapsed),
+			zap.Int("range len", rangesLen),
+			zap.Int("copTaskNum", copTaskNum),
+			zap.Int("batchCopTaskNum", len(res)))
+	}
 	return res, nil
 }
 
