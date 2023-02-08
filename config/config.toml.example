@@ -459,7 +459,3 @@ tidb_enable_ddl = true
 # If don't set keyspace_name or keyspace_name == "", it means the keyspace name is not set, and in single-tenant.
 # All architectures and request should keep the single-tenant design.
 keyspace-name = ""
-
-# Specify a sql file to execute during bootstrap.
-# This can be used to set-up SEM privileges before enabling it.
-bootstrap-sql-file = ""

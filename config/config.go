@@ -264,13 +264,9 @@ type Config struct {
 
 	// Keyspace and serverless related configs.
 
-	// BootstrapSQLFile is the path to SQL file to run during bootstrap.
-	BootstrapSQLFile string `toml:"bootstrap-sql-file" json:"bootstrap-sql-file"`
-	// BootstrapSQLParams is the parameters for bootstrap SQL file.
-	BootstrapSQLParams   map[string]string `toml:"bootstra-sql-params" json:"bootstrap-sql-params"`
-	StandByMode          bool              `toml:"standby" json:"standby"`
-	KeyspaceActivateMode bool              `toml:"keyspace-activate" json:"keyspace-activate"`
-	MaxIdleSeconds       uint              `toml:"max-idle-seconds" json:"max-idle-seconds"`
+	StandByMode          bool `toml:"standby" json:"standby"`
+	KeyspaceActivateMode bool `toml:"keyspace-activate" json:"keyspace-activate"`
+	MaxIdleSeconds       uint `toml:"max-idle-seconds" json:"max-idle-seconds"`
 	// ActivationTimeout specifies the maximum allowed time for tidb to activate from standby mode.
 	ActivationTimeout uint `toml:"activation-timeout" json:"activation-timeout"`
 
