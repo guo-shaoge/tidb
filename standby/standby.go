@@ -21,8 +21,7 @@ const (
 
 // ActivateRequest is the request body for activating the tidb server.
 type ActivateRequest struct {
-	KeyspaceName    string            `json:"keyspace_name"`
-	BootstrapParams map[string]string `json:"bootstrap_params"`
+	KeyspaceName string `json:"keyspace_name"`
 }
 
 var (

@@ -6,7 +6,6 @@ go_library(
         "advisory_locks.go",
         "bootstrap.go",
         "bootstrap_serverless.go",
-        "devtier.go",
         "metrics.go",
         "nontransactional.go",
         "schema_amender.go",

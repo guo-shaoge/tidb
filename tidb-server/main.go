@@ -135,8 +135,6 @@ const (
 	nmMaxIdleSeconds    = "max-idle-seconds"
 
 	nmKeyspaceActivate = "keyspace-activate"
-
-	nmBootstrapSQLFile = "bootstrap-sql-file"
 )
 
 var (
@@ -191,9 +189,6 @@ var (
 
 	// Keyspace Activate
 	keyspaceActivateMode = flagBoolean(nmKeyspaceActivate, false, "start tidb-server as keyspaceActivate")
-
-	// Bootstrap SQL File
-	bootstrapSQLFile = flag.String(nmBootstrapSQLFile, "", "path to file that contains SQL statements to initialize database")
 )
 
 func main() {
@@ -220,7 +215,6 @@ func main() {
 			config.GetGlobalConfig().ActivationTimeout)
 		config.UpdateGlobal(func(c *config.Config) {
 			c.KeyspaceName = activateRequest.KeyspaceName
-			c.BootstrapSQLParams = activateRequest.BootstrapParams
 		})
 		maxIdleSeconds := int(config.GetGlobalConfig().MaxIdleSeconds)
 		if maxIdleSeconds > 0 {
@@ -295,8 +289,6 @@ func main() {
 	storage, dom, err := createStoreAndDomain(keyspaceName)
 	mainErrHandler(err)
 	svr := createServer(storage, dom)
-
-	session.RunBootstrapSQL(storage)
 
 	// Register error API is not thread-safe, the caller MUST NOT register errors after initialization.
 	// To prevent misuse, set a flag to indicate that register new error will panic immediately.
@@ -756,10 +748,6 @@ func overrideConfig(cfg *config.Config) {
 
 	if actualFlags[nmMaxIdleSeconds] {
 		cfg.MaxIdleSeconds = *maxIdleSeconds
-	}
-
-	if actualFlags[nmBootstrapSQLFile] {
-		cfg.BootstrapSQLFile = *bootstrapSQLFile
 	}
 }
 

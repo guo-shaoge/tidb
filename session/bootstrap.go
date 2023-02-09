@@ -2102,7 +2102,6 @@ func doDMLWorks(s Session) {
 		mustExecute(s, `INSERT HIGH_PRIORITY INTO mysql.user VALUES
 		("localhost", %?, %?, "auth_socket", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "N", "Y", "Y", "Y", "Y", "Y", null, "")`, rootUserName, u.Username)
 	} else {
-		logutil.BgLogger().Warn("!!!!!", zap.String("root user name", rootUserName))
 		mustExecute(s, `INSERT HIGH_PRIORITY INTO mysql.user VALUES
 		("%", %?, "", "mysql_native_password", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "Y", "N", "Y", "Y", "Y", "Y", "Y", null, "")`, rootUserName)
 	}
@@ -2162,10 +2161,6 @@ func doDMLWorks(s Session) {
 		mysql.SystemDB, mysql.TiDBTable, tidbServerVersionVar, currentBootstrapVersion,
 	)
 
-	mustExecute(s, `INSERT HIGH_PRIORITY INTO %n.%n VALUES(%?, %?, "Serverless bootstrap version. Do not delete.")`,
-		mysql.SystemDB, mysql.TiDBTable, serverlessVersionVar, currentServerlessVersion,
-	)
-
 	writeSystemTZ(s)
 
 	writeNewCollationParameter(s, config.GetGlobalConfig().NewCollationsEnabledOnFirstBootstrap)
@@ -2173,6 +2168,17 @@ func doDMLWorks(s Session) {
 	writeDefaultExprPushDownBlacklist(s)
 
 	writeStmtSummaryVars(s)
+
+	// Serverless Bootstrap function.
+	bootstrapServerlessVariables(s)          // Write serverless variables.
+	bootstrapServerlessRoot(s, rootUserName) // Configure root's privilege.
+	bootstrapRoleAdmin(s)                    // Create and configure role_admin.
+	bootstrapCloudAdmin(s)                   // Create and configure cloud_admin.
+	bootstrapServerlessPushdownBlacklist(s)  // Add incompatible executors to pushdown_blacklist.
+	// Finish serverless bootstrap and write current serverless version.
+	mustExecute(s, `INSERT HIGH_PRIORITY INTO %n.%n VALUES(%?, %?, "Serverless bootstrap version. Do not delete.")`,
+		mysql.SystemDB, mysql.TiDBTable, serverlessVersionVar, currentServerlessVersion,
+	)
 
 	ctx := kv.WithInternalSourceType(context.Background(), kv.InternalTxnBootstrap)
 	_, err := s.ExecuteInternal(ctx, "COMMIT")
