@@ -688,8 +688,8 @@ func buildBatchCopTasksConsistentHash(
 	for i, rpcCtx := range rpcCtxs {
 		regionInfo := RegionInfo{
 			// tasks and rpcCtxs are correspond to each other.
-			Region: tasks[i].region,
-			Ranges: tasks[i].ranges,
+			Region:         tasks[i].region,
+			Ranges:         tasks[i].ranges,
 			PartitionIndex: tasks[i].partitionIndex,
 			// No need to setup regionMeta and Store info.
 			// Meta:           rpcCtx.Meta,

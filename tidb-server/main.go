@@ -253,10 +253,12 @@ func main() {
 	setupExtensions()
 
 	if config.GetGlobalConfig().DisaggregatedTiFlash {
+		clusterID, err := config.GetAutoScalerClusterID()
+		mainErrHandler(err)
 		err = tiflashcompute.InitGlobalTopoFetcher(
 			config.GetGlobalConfig().TiFlashComputeAutoScalerType,
 			config.GetGlobalConfig().TiFlashComputeAutoScalerAddr,
-			config.GetGlobalConfig().KeyspaceName,
+			clusterID,
 			config.GetGlobalConfig().IsTiFlashComputeFixedPool)
 		mainErrHandler(err)
 	}

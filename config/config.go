@@ -298,6 +298,7 @@ type Config struct {
 	TiFlashComputeAutoScalerType string `toml:"autoscaler-type" json:"autoscaler-type"`
 	TiFlashComputeAutoScalerAddr string `toml:"autoscaler-addr" json:"autoscaler-addr"`
 	IsTiFlashComputeFixedPool    bool   `toml:"is-tiflashcompute-fixed-pool" json:"is-tiflashcompute-fixed-pool"`
+	AutoScalerClusterID          string `toml:"autoscaler-cluster-id" json:"autoscaler-cluster-id"`
 
 	// TiDBMaxReuseChunk indicates max cached chunk num
 	TiDBMaxReuseChunk uint32 `toml:"tidb-max-reuse-chunk" json:"tidb-max-reuse-chunk"`
@@ -1015,6 +1016,7 @@ var defaultConf = Config{
 	TiFlashComputeAutoScalerType:         tiflashcompute.DefASStr,
 	TiFlashComputeAutoScalerAddr:         tiflashcompute.DefAWSAutoScalerAddr,
 	IsTiFlashComputeFixedPool:            false,
+	AutoScalerClusterID:                  "",
 	TiDBMaxReuseChunk:                    64,
 	TiDBMaxReuseColumn:                   256,
 	EnableAnalyze:                        true,
@@ -1045,6 +1047,24 @@ func StoreGlobalConfig(config *Config) {
 	defer TikvConfigLock.Unlock()
 	cfg := *config.GetTiKVConfig()
 	tikvcfg.StoreGlobalConfig(&cfg)
+}
+
+// GetAutoScalerClusterID returns KeyspaceName or AutoScalerClusterID.
+func GetAutoScalerClusterID() (string, error) {
+	c := GetGlobalConfig()
+	keyspaceName := c.KeyspaceName
+	clusterID := c.AutoScalerClusterID
+	if keyspaceName != "" && clusterID != "" {
+		return "", errors.Errorf("config.KeyspaceName(%s) and config.AutoScalerClusterID(%s) are not empty both", keyspaceName, clusterID)
+	}
+	if keyspaceName == "" && clusterID == "" {
+		return "", errors.Errorf("config.KeyspaceName and config.AutoScalerClusterID are both empty")
+	}
+	res := keyspaceName
+	if res == "" {
+		res = clusterID
+	}
+	return res, nil
 }
 
 // removedConfig contains items that are no longer supported.
@@ -1338,7 +1358,7 @@ func (c *Config) Valid() error {
 
 	// Check tiflash_compute topo fetch is valid.
 	if c.DisaggregatedTiFlash {
-		if tiflashcompute.GetAutoScalerType(c.TiFlashComputeAutoScalerType) == tiflashcompute.InvalidASType {
+		if !tiflashcompute.IsValidAutoScalerConfig(c.TiFlashComputeAutoScalerType) {
 			return fmt.Errorf("invalid AutoScaler type, expect %s, %s or %s, got %s",
 				tiflashcompute.MockASStr, tiflashcompute.AWSASStr, tiflashcompute.GCPASStr, c.TiFlashComputeAutoScalerType)
 		}
