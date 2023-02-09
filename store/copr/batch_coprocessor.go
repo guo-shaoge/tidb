@@ -498,7 +498,7 @@ func buildBatchCopTasksForNonPartitionedTable(
 	balanceWithContinuity bool,
 	balanceContinuousRegionCount int64) ([]*batchCopTask, error) {
 	if config.GetGlobalConfig().DisaggregatedTiFlash {
-		return buildBatchCopTasksConsistentHash(ctx, bo, store, []*KeyRanges{ranges}, storeType, mppStoreLastFailTime, ttl)
+		return buildBatchCopTasksConsistentHash(ctx, bo, store, []*KeyRanges{ranges}, storeType, ttl)
 	}
 	return buildBatchCopTasksCore(bo, store, []*KeyRanges{ranges}, storeType, mppStoreLastFailTime, ttl, balanceWithContinuity, balanceContinuousRegionCount)
 }
@@ -515,7 +515,7 @@ func buildBatchCopTasksForPartitionedTable(
 	balanceContinuousRegionCount int64,
 	partitionIDs []int64) (batchTasks []*batchCopTask, err error) {
 	if config.GetGlobalConfig().DisaggregatedTiFlash {
-		batchTasks, err = buildBatchCopTasksConsistentHash(ctx, bo, store, rangesForEachPhysicalTable, storeType, mppStoreLastFailTime, ttl)
+		batchTasks, err = buildBatchCopTasksConsistentHash(ctx, bo, store, rangesForEachPhysicalTable, storeType, ttl)
 	} else {
 		batchTasks, err = buildBatchCopTasksCore(bo, store, rangesForEachPhysicalTable, storeType, mppStoreLastFailTime, ttl, balanceWithContinuity, balanceContinuousRegionCount)
 	}
@@ -627,15 +627,17 @@ func buildBatchCopTasksConsistentHash(
 	kvStore *kvStore,
 	rangesForEachPhysicalTable []*KeyRanges,
 	storeType kv.StoreType,
-	mppStoreLastFailTime *sync.Map,
 	ttl time.Duration) (res []*batchCopTask, err error) {
+	start := time.Now()
 	const cmdType = tikvrpc.CmdBatchCop
 	cache := kvStore.GetRegionCache()
 	fetchTopoBo := backoff.NewBackofferWithVars(ctx, fetchTopoMaxBackoff, nil)
 
-	var retryNum int
-	var rangesLen int
-	var storesStr []string
+	var (
+		retryNum  int
+		rangesLen int
+		storesStr []string
+	)
 
 	tasks := make([]*copTask, 0)
 	regionIDs := make([]tikv.RegionVerID, 0)
@@ -657,7 +659,9 @@ func buildBatchCopTasksConsistentHash(
 			regionIDs = append(regionIDs, lo.Location.Region)
 		}
 	}
+	splitKeyElapsed := time.Since(start)
 
+	fetchTopoStart := time.Now()
 	for {
 		retryNum++
 		// todo: use AssureAndGetTopo() after SNS is done.
@@ -676,13 +680,14 @@ func buildBatchCopTasksConsistentHash(
 		}
 		break
 	}
+	fetchTopoElapsed := time.Since(fetchTopoStart)
 
 	rpcCtxs, err := getTiFlashComputeRPCContextByConsistentHash(regionIDs, storesStr)
 	if err != nil {
 		return nil, err
 	}
 	if len(rpcCtxs) != len(tasks) {
-		return nil, errors.Errorf("length should be equal, len(rpcCtxs): %v, len(tasks): %v", len(rpcCtxs), len(tasks))
+		return nil, errors.Errorf("length should be equal, len(rpcCtxs): %d, len(tasks): %d", len(rpcCtxs), len(tasks))
 	}
 	taskMap := make(map[string]*batchCopTask)
 	for i, rpcCtx := range rpcCtxs {
@@ -710,6 +715,24 @@ func buildBatchCopTasksConsistentHash(
 	}
 	logutil.BgLogger().Info("buildBatchCopTasksConsistentHash done", zap.Any("len(tasks)", len(taskMap)), zap.Any("len(tiflash_compute)", len(storesStr)))
 
+	if log.GetLevel() <= zap.DebugLevel {
+		debugTaskMap := make(map[string]string, len(taskMap))
+		for s, b := range taskMap {
+			debugTaskMap[s] = fmt.Sprintf("addr: %s; regionInfos: %v", b.storeAddr, b.regionInfos)
+		}
+		logutil.BgLogger().Debug("detailed info buildBatchCopTasksConsistentHash", zap.Any("taskMap", debugTaskMap), zap.Any("allStores", storesStr))
+	}
+
+	if elapsed := time.Since(start); elapsed > time.Millisecond*500 {
+		logutil.BgLogger().Warn("buildBatchCopTasksConsistentHash takes too much time",
+			zap.Duration("total elapsed", elapsed),
+			zap.Int("retryNum", retryNum),
+			zap.Duration("SplitKeyRangesByLocations", splitKeyElapsed),
+			zap.Duration("fetchTopo", fetchTopoElapsed),
+			zap.Int("range len", rangesLen),
+			zap.Int("copTaskNum", len(tasks)),
+			zap.Int("batchCopTaskNum", len(res)))
+	}
 	return res, nil
 }
 
