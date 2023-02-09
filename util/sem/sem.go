@@ -71,6 +71,15 @@ const (
 	tikvStoreStatus  = "tikv_store_status"
 	tiflashSegments  = "tiflash_segments"
 	tiflashTables    = "tiflash_tables"
+	// Serverless tier slow query related tables.
+	slowQuery                       = "slow_query"
+	clusterSlowQuery                = "cluster_slow_query"
+	statementsSummary               = "statements_summary"
+	statementsSummaryEvicted        = "statements_summary_evicted"
+	statementsSummaryHistory        = "statements_summary_history"
+	clusterStatementsSummary        = "cluster_statements_summary"
+	clusterStatementsSummaryEvicted = "cluster_statements_summary_evicted"
+	clusterStatementsSummaryHistory = "cluster_statements_summary_history"
 )
 
 var (
@@ -121,7 +130,9 @@ func IsInvisibleTable(dbLowerName, tblLowerName string) bool {
 		switch tblLowerName {
 		case clusterConfig, clusterHardware, clusterLoad, clusterLog, clusterSystemInfo, inspectionResult,
 			inspectionRules, inspectionSummary, metricsSummary, metricsSummaryByLabel, metricsTables, tidbHotRegions,
-			clusterInfo, tikvRegionStatus, tikvStoreStatus, tiflashSegments, tiflashTables:
+			clusterInfo, tikvRegionStatus, tikvStoreStatus, tiflashSegments, tiflashTables, clusterSlowQuery,
+			slowQuery, statementsSummary, statementsSummaryEvicted, statementsSummaryHistory, clusterStatementsSummary,
+			clusterStatementsSummaryEvicted, clusterStatementsSummaryHistory:
 			return true
 		}
 	case performanceSchema:
