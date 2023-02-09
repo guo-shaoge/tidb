@@ -1050,19 +1050,24 @@ func StoreGlobalConfig(config *Config) {
 }
 
 // GetAutoScalerClusterID returns KeyspaceName or AutoScalerClusterID.
-func GetAutoScalerClusterID() (string, error) {
+// The priority is:
+//  1. autoscaler-cluster-id, which is from tidb.toml.
+//  2. clusterIDFromKeyspaceMeta, which is fetched from PD.
+//  3. KeyspaceName.
+func GetAutoScalerClusterID(clusterIDFromKeyspaceMeta string) (string, error) {
 	c := GetGlobalConfig()
 	keyspaceName := c.KeyspaceName
-	clusterID := c.AutoScalerClusterID
-	if keyspaceName != "" && clusterID != "" {
-		return "", errors.Errorf("config.KeyspaceName(%s) and config.AutoScalerClusterID(%s) are not empty both", keyspaceName, clusterID)
+	clusterIDFromConfig := c.AutoScalerClusterID
+	if clusterIDFromConfig == "" && clusterIDFromKeyspaceMeta == "" && keyspaceName == "" {
+		return "", errors.Errorf("config.AutoScalerClusterID, clusterIDFromKeyspaceMeta and config.KeyspaceName are all empty, cannot figure out real clusterID")
 	}
-	if keyspaceName == "" && clusterID == "" {
-		return "", errors.Errorf("config.KeyspaceName and config.AutoScalerClusterID are both empty")
-	}
-	res := keyspaceName
-	if res == "" {
-		res = clusterID
+	var res string
+	if clusterIDFromConfig != "" {
+		res = clusterIDFromConfig
+	} else if clusterIDFromKeyspaceMeta != "" {
+		res = clusterIDFromKeyspaceMeta
+	} else {
+		res = keyspaceName
 	}
 	return res, nil
 }

@@ -238,7 +238,7 @@ func main() {
 	registerStores()
 
 	// load keyspace and set metric labels.
-	err := getServerlessInfo()
+	keyspaceMeta, err := getServerlessInfo()
 	mainErrHandler(err)
 
 	registerMetrics()
@@ -253,7 +253,9 @@ func main() {
 	setupExtensions()
 
 	if config.GetGlobalConfig().DisaggregatedTiFlash {
-		clusterID, err := config.GetAutoScalerClusterID()
+		// For Serverless Tier, PD may record the cluster id.
+		clusterIDFromKeyspaceMeta := keyspaceMeta.Config["serverless_cluster_id"]
+		clusterID, err := config.GetAutoScalerClusterID(clusterIDFromKeyspaceMeta)
 		mainErrHandler(err)
 		err = tiflashcompute.InitGlobalTopoFetcher(
 			config.GetGlobalConfig().TiFlashComputeAutoScalerType,
@@ -319,17 +321,17 @@ func main() {
 	syncLog()
 }
 
-func getServerlessInfo() error {
+func getServerlessInfo() (*keyspacepb.KeyspaceMeta, error) {
 	// load keyspace and set metric labels.
 	cfg := config.GetGlobalConfig()
 	if keyspace.IsKeyspaceNameEmpty(cfg.KeyspaceName) || strings.ToLower(cfg.Store) != "tikv" {
-		return nil
+		return nil, nil
 	}
 
 	log.Info("serverless cluster info loading...", zap.Any("keyspace", cfg.KeyspaceName))
 	etcdAddrs, _, _, err := tikvconfig.ParsePath("tikv://" + cfg.Path)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	pdCli, err := pd.NewClient(etcdAddrs, pd.SecurityOption{
@@ -340,7 +342,7 @@ func getServerlessInfo() error {
 		pd.WithCustomTimeoutOption(time.Duration(cfg.PDClient.PDServerTimeout)*time.Second),
 	)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer pdCli.Close()
 
@@ -357,7 +359,7 @@ func getServerlessInfo() error {
 		return false, errInner
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	keyspace.Limiter.StartAdjustLimit(etcdAddrs, keyspaceMeta.Id)
@@ -367,7 +369,7 @@ func getServerlessInfo() error {
 	log.Info("serverless cluster info loaded",
 		zap.Any("labels", metrics.ServerlessLabels),
 	)
-	return nil
+	return keyspaceMeta, nil
 }
 
 func syncLog() {
