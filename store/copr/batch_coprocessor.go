@@ -498,7 +498,7 @@ func buildBatchCopTasksForNonPartitionedTable(
 	balanceWithContinuity bool,
 	balanceContinuousRegionCount int64) ([]*batchCopTask, error) {
 	if config.GetGlobalConfig().DisaggregatedTiFlash {
-		return buildBatchCopTasksConsistentHash(ctx, bo, store, []*KeyRanges{ranges}, storeType, ttl)
+		return buildBatchCopTasksConsistentHash(ctx, bo, store, []*KeyRanges{ranges}, storeType, mppStoreLastFailTime, ttl)
 	}
 	return buildBatchCopTasksCore(bo, store, []*KeyRanges{ranges}, storeType, mppStoreLastFailTime, ttl, balanceWithContinuity, balanceContinuousRegionCount)
 }
@@ -515,7 +515,7 @@ func buildBatchCopTasksForPartitionedTable(
 	balanceContinuousRegionCount int64,
 	partitionIDs []int64) (batchTasks []*batchCopTask, err error) {
 	if config.GetGlobalConfig().DisaggregatedTiFlash {
-		batchTasks, err = buildBatchCopTasksConsistentHash(ctx, bo, store, rangesForEachPhysicalTable, storeType, ttl)
+		batchTasks, err = buildBatchCopTasksConsistentHash(ctx, bo, store, rangesForEachPhysicalTable, storeType, mppStoreLastFailTime, ttl)
 	} else {
 		batchTasks, err = buildBatchCopTasksCore(bo, store, rangesForEachPhysicalTable, storeType, mppStoreLastFailTime, ttl, balanceWithContinuity, balanceContinuousRegionCount)
 	}
@@ -627,6 +627,7 @@ func buildBatchCopTasksConsistentHash(
 	kvStore *kvStore,
 	rangesForEachPhysicalTable []*KeyRanges,
 	storeType kv.StoreType,
+	mppStoreLastFailTime *sync.Map,
 	ttl time.Duration) (res []*batchCopTask, err error) {
 	start := time.Now()
 	const cmdType = tikvrpc.CmdBatchCop
@@ -669,6 +670,10 @@ func buildBatchCopTasksConsistentHash(
 		if err != nil {
 			return nil, err
 		}
+		logutil.BgLogger().Info("topo after fetch from AutoScaler", zap.Any("topo", storesStr))
+
+		filterAliveStoresStr(ctx, storesStr, mppStoreLastFailTime, ttl, kvStore)
+		logutil.BgLogger().Info("topo filter alive", zap.Any("topo", storesStr))
 		if len(storesStr) == 0 {
 			retErr := errors.New("Cannot find proper topo from AutoScaler")
 			logutil.BgLogger().Info("buildBatchCopTasksConsistentHash retry because FetchAndGetTopo return empty topo", zap.Int("retryNum", retryNum))
