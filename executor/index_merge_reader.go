@@ -654,7 +654,7 @@ func (e *IndexMergeReaderExecutor) startIndexMergeTableScanWorker(ctx context.Co
 			memTracker:     e.memTracker,
 		}
 		ctx1, cancel := context.WithCancel(ctx)
-		go func() {
+		go func(workID int) {
 			defer trace.StartRegion(ctx, "IndexMergeTableScanWorker").End()
 			var task *indexMergeTableTask
 			util.WithRecovery(
@@ -664,11 +664,11 @@ func (e *IndexMergeReaderExecutor) startIndexMergeTableScanWorker(ctx context.Co
 				// so if we don't use the address of `task` as the argument, the assignment to `task` in `pickAndExecTask` is
 				// not visible in `handleTableScanWorkerPanic`
 				func() { worker.pickAndExecTask(ctx1, &task) },
-				worker.handleTableScanWorkerPanic(ctx1, e.finished, &task, tableScanWorkerType),
+				worker.handleTableScanWorkerPanic(ctx1, e.finished, &task, fmt.Sprintf("%s_%d", tableScanWorkerType, workID)),
 			)
 			cancel()
 			e.tblWorkerWg.Done()
-		}()
+		}(i)
 	}
 }
 
@@ -694,6 +694,7 @@ func (e *IndexMergeReaderExecutor) buildFinalTableReader(ctx context.Context, tb
 		logutil.Logger(ctx).Error("build table reader from handles failed", zap.Error(err))
 		return nil, err
 	}
+	logutil.Logger(ctx).Info("buildFinalTableReader tableReader build done")
 	return tableReader, nil
 }
 
@@ -1237,6 +1238,7 @@ func (w *indexMergeTableScanWorker) pickAndExecTask(ctx context.Context, task **
 func (w *indexMergeTableScanWorker) handleTableScanWorkerPanic(ctx context.Context, finished <-chan struct{}, task **indexMergeTableTask, worker string) func(r interface{}) {
 	return func(r interface{}) {
 		if r == nil {
+			logutil.BgLogger().Info("worker finish successfully", zap.Any("worker", worker))
 			return
 		}
 
