@@ -1265,6 +1265,9 @@ func (w *indexMergeTableScanWorker) executeTask(ctx context.Context, task *index
 		tbl = task.partitionTable
 	}
 	tableReader, err := w.indexMergeExec.buildFinalTableReader(ctx, tbl, task.handles)
+	if !w.indexMergeExec.ctx.GetSessionVars().InRestrictedSQL {
+		logutil.Logger(ctx).Error("gjt debug buildFinalTableReader done", zap.Any("worker", w.workID))
+	}
 	if err != nil {
 		logutil.Logger(ctx).Error("build table reader failed", zap.Error(err))
 		return err
