@@ -263,8 +263,10 @@ func (e *TableReaderExecutor) Next(ctx context.Context, req *chunk.Chunk) error 
 
 // Close implements the Executor Close interface.
 func (e *TableReaderExecutor) Close() error {
+	logutil.BgLogger().Info("gjt debug in TableReaderExecutor.Close")
 	var err error
 	if e.resultHandler != nil {
+		logutil.BgLogger().Info("gjt debug in TableReaderExecutor.Close resultHandler")
 		err = e.resultHandler.Close()
 	}
 	e.kvRanges = e.kvRanges[:0]

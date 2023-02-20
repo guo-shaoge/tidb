@@ -29,7 +29,6 @@ import (
 	"github.com/pingcap/tidb/distsql"
 	"github.com/pingcap/tidb/kv"
 	"github.com/pingcap/tidb/parser/model"
-	"github.com/pingcap/tidb/parser/terror"
 	plannercore "github.com/pingcap/tidb/planner/core"
 	"github.com/pingcap/tidb/sessionctx"
 	"github.com/pingcap/tidb/statistics"
@@ -1266,7 +1265,13 @@ func (w *indexMergeTableScanWorker) executeTask(ctx context.Context, task *index
 		logutil.Logger(ctx).Error("build table reader failed", zap.Error(err))
 		return err
 	}
-	defer terror.Call(tableReader.Close)
+	defer func() {
+		logutil.Logger(ctx).Error("gjt debug close tableReader")
+		err := tableReader.Close()
+		if err != nil {
+			logutil.Logger(ctx).Error("close tableReader failed", zap.Error(err))
+		}
+	}()
 	task.memTracker = w.memTracker
 	memUsage := int64(cap(task.handles) * 8)
 	task.memUsage = memUsage
