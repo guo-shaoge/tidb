@@ -652,6 +652,7 @@ func (e *IndexMergeReaderExecutor) startIndexMergeTableScanWorker(ctx context.Co
 			indexMergeExec: e,
 			tblPlans:       e.tblPlans,
 			memTracker:     e.memTracker,
+			workID: i,
 		}
 		ctx1, cancel := context.WithCancel(ctx)
 		go func(workID int) {
@@ -1198,6 +1199,7 @@ type indexMergeTableScanWorker struct {
 
 	// memTracker is used to track the memory usage of this executor.
 	memTracker *memory.Tracker
+	workID int
 }
 
 func (w *indexMergeTableScanWorker) pickAndExecTask(ctx context.Context, task **indexMergeTableTask) {
@@ -1269,11 +1271,11 @@ func (w *indexMergeTableScanWorker) executeTask(ctx context.Context, task *index
 	}
 	defer func() {
 		if !w.indexMergeExec.ctx.GetSessionVars().InRestrictedSQL {
-			logutil.Logger(ctx).Error("gjt debug close tableReader")
+			logutil.Logger(ctx).Error("gjt debug close tableReader", zap.Any("worker", w.workID))
 		}
 		err := tableReader.Close()
 		if err != nil {
-			logutil.Logger(ctx).Error("close tableReader failed", zap.Error(err))
+			logutil.Logger(ctx).Error("close tableReader failed", zap.Any("worker", w.workID), zap.Error(err))
 		}
 	}()
 	task.memTracker = w.memTracker
