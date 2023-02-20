@@ -1266,7 +1266,9 @@ func (w *indexMergeTableScanWorker) executeTask(ctx context.Context, task *index
 		return err
 	}
 	defer func() {
-		logutil.Logger(ctx).Error("gjt debug close tableReader")
+		if !w.indexMergeExec.ctx.GetSessionVars().InRestrictedSQL {
+			logutil.Logger(ctx).Error("gjt debug close tableReader")
+		}
 		err := tableReader.Close()
 		if err != nil {
 			logutil.Logger(ctx).Error("close tableReader failed", zap.Error(err))

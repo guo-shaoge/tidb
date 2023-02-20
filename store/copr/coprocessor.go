@@ -1743,7 +1743,6 @@ func (worker *copIteratorWorker) finished() bool {
 
 func (it *copIterator) Close() error {
 	if atomic.CompareAndSwapUint32(&it.closed, 0, 1) {
-		logutil.BgLogger().Info("gjt debug copIterator.Close()")
 		close(it.finishCh)
 	}
 	it.rpcCancel.CancelAll()
