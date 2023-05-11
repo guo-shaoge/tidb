@@ -231,6 +231,9 @@ func (e *CTEExec) Close() (err error) {
 }
 
 func (e *CTEExec) computeSeedPart(ctx context.Context) (err error) {
+	failpoint.Inject("testCTEPanicInSeedPart", func(_ failpoint.Value) {
+		e.resTbl.GetDiskTracker().Consume(100 * 1024 * 1024 * 1024)
+	})
 	e.curIter = 0
 	e.iterInTbl.SetIter(e.curIter)
 	chks := make([]*chunk.Chunk, 0, 10)
@@ -264,6 +267,9 @@ func (e *CTEExec) computeSeedPart(ctx context.Context) (err error) {
 }
 
 func (e *CTEExec) computeRecursivePart(ctx context.Context) (err error) {
+	failpoint.Inject("testCTEPanicInRecursivePart", func(_ failpoint.Value) {
+		e.resTbl.GetDiskTracker().Consume(100 * 1024 * 1024 * 1024)
+	})
 	if e.recursiveExec == nil || e.iterInTbl.NumChunks() == 0 {
 		return nil
 	}
