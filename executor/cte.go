@@ -16,6 +16,7 @@ package executor
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/pingcap/errors"
 	"github.com/pingcap/failpoint"
@@ -160,6 +161,9 @@ func (e *CTEExec) Next(ctx context.Context, req *chunk.Chunk) (err error) {
 			return e.resTbl.Error()
 		}
 		resAction := setupCTEStorageTracker(e.resTbl, e.ctx, e.memTracker, e.diskTracker)
+		if testFlag == 1 {
+			testFlag = 2
+		}
 		iterInAction := setupCTEStorageTracker(e.iterInTbl, e.ctx, e.memTracker, e.diskTracker)
 		var iterOutAction *chunk.SpillDiskAction
 		if e.iterOutTbl != nil {
@@ -230,9 +234,12 @@ func (e *CTEExec) Close() (err error) {
 	return e.baseExecutor.Close()
 }
 
+var testFlag = 0
+
 func (e *CTEExec) computeSeedPart(ctx context.Context) (err error) {
 	failpoint.Inject("testCTEPanicInSeedPart", func(_ failpoint.Value) {
-		e.resTbl.GetDiskTracker().Consume(100 * 1024 * 1024 * 1024)
+		testFlag = 1
+		panic("gjt test")
 	})
 	e.curIter = 0
 	e.iterInTbl.SetIter(e.curIter)
@@ -435,6 +442,10 @@ func setupCTEStorageTracker(tbl cteutil.Storage, ctx sessionctx.Context, parentM
 	parentDiskTracker *disk.Tracker) (actionSpill *chunk.SpillDiskAction) {
 	memTracker := tbl.GetMemTracker()
 	memTracker.SetLabel(memory.LabelForCTEStorage)
+	if testFlag == 2 {
+		memTracker.Consume(1)
+		ctx.GetSessionVars().MemTracker.NeedKill.Store(true)
+	}
 	memTracker.AttachTo(parentMemTracker)
 
 	diskTracker := tbl.GetDiskTracker()
