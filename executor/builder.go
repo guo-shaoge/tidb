@@ -5321,7 +5321,15 @@ func (b *executorBuilder) buildCTE(v *plannercore.PhysicalCTE) Executor {
 	if b.Ti != nil {
 		b.Ti.UseNonRecursive = true
 	}
-	seedExec := b.build(v.SeedPlan)
+	// Because same CTE definition has same physical plan,
+	// so correlated col in the same CTE definition are shared,
+	// To avoid building different CTE reference affects each other, we copy physical plan.
+	clonedSeedPlan, err := plannercore.SafeClone(v.SeedPlan)
+	if err != nil {
+		b.err = err
+		return nil
+	}
+	seedExec := b.build(clonedSeedPlan)
 	if b.err != nil {
 		return nil
 	}
@@ -5361,7 +5369,15 @@ func (b *executorBuilder) buildCTE(v *plannercore.PhysicalCTE) Executor {
 	if v.RecurPlan != nil && b.Ti != nil {
 		b.Ti.UseRecursive = true
 	}
-	recursiveExec := b.build(v.RecurPlan)
+	var clonedRecurPlan plannercore.PhysicalPlan
+	if v.RecurPlan != nil {
+		clonedRecurPlan, err = plannercore.SafeClone(v.RecurPlan)
+		if err != nil {
+			b.err = err
+			return nil
+		}
+	}
+	recursiveExec := b.build(clonedRecurPlan)
 	if b.err != nil {
 		return nil
 	}
