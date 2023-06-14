@@ -2616,6 +2616,7 @@ func (p *PhysicalCTETable) MemoryUsage() (sum int64) {
 	return p.physicalSchemaProducer.MemoryUsage() + size.SizeOfInt
 }
 
+// Clone implements PhysicalPlan interface.
 func (p *PhysicalCTETable) Clone() (PhysicalPlan, error) {
 	cloned := new(PhysicalCTETable)
 	base, err := p.physicalSchemaProducer.cloneWithSelf(cloned)
