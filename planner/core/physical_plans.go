@@ -2616,6 +2616,17 @@ func (p *PhysicalCTETable) MemoryUsage() (sum int64) {
 	return p.physicalSchemaProducer.MemoryUsage() + size.SizeOfInt
 }
 
+func (p *PhysicalCTETable) Clone() (PhysicalPlan, error) {
+	cloned := new(PhysicalCTETable)
+	base, err := p.physicalSchemaProducer.cloneWithSelf(cloned)
+	if err != nil {
+		return nil, err
+	}
+	cloned.physicalSchemaProducer = *base
+	cloned.IDForStorage = p.IDForStorage
+	return cloned, nil
+}
+
 // CTEDefinition is CTE definition for explain.
 type CTEDefinition PhysicalCTE
 
