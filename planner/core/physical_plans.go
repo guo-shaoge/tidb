@@ -2207,6 +2207,23 @@ func (p *PhysicalTableDual) MemoryUsage() (sum int64) {
 	return
 }
 
+func (p *PhysicalTableDual) Clone() (PhysicalPlan, error) {
+	cloned := new(PhysicalTableDual)
+	base, err := p.physicalSchemaProducer.cloneWithSelf(cloned)
+	if err != nil {
+		return nil, err
+	}
+	cloned.physicalSchemaProducer = *base
+	cloned.RowCount = p.RowCount
+	cloned.names = make([]*types.FieldName, 0, len(p.names))
+	for _, name := range p.names {
+		clonedName := new(types.FieldName)
+		*clonedName = *name
+		cloned.names = append(cloned.names, clonedName)
+	}
+	return cloned, nil
+}
+
 // PhysicalWindow is the physical operator of window function.
 type PhysicalWindow struct {
 	physicalSchemaProducer
