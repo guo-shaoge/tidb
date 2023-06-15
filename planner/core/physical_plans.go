@@ -2207,6 +2207,7 @@ func (p *PhysicalTableDual) MemoryUsage() (sum int64) {
 	return
 }
 
+// Clone implements PhysicalPlan interface.
 func (p *PhysicalTableDual) Clone() (PhysicalPlan, error) {
 	cloned := new(PhysicalTableDual)
 	base, err := p.physicalSchemaProducer.cloneWithSelf(cloned)
