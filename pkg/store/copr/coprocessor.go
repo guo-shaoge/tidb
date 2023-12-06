@@ -1296,7 +1296,9 @@ func (worker *copIteratorWorker) handleTaskOnce(bo *Backoffer, task *copTask, ch
 			}
 		}
 	} else {
-		logutil.BgLogger().Info("gjt debug after handle paging task non paging!!!", zap.Any("err", err))
+		if worker.isOuterSQL {
+			logutil.BgLogger().Info("gjt debug after handle paging task non paging!!!", zap.Any("err", err))
+		}
 		// Handles the response for non-paging copTask.
 		remains, err = worker.handleCopResponse(bo, rpcCtx, &copResponse{pbResp: copResp}, cacheKey, cacheValue, task, ch, nil, costTime)
 	}
@@ -1368,6 +1370,9 @@ func (worker *copIteratorWorker) handleCopPagingResult(bo *Backoffer, rpcCtx *ti
 		for _, remainedTask := range remainedTasks {
 			remainedTask.pagingSize = task.pagingSize
 		}
+		if worker.isOuterSQL {
+			logutil.BgLogger().Info("gjt debug worker.handleCopResponse done", zap.Any("remainedTasks", len(remainedTasks)), zap.Any("err", err))
+		}
 		return remainedTasks, errors.Trace(err)
 	}
 	pagingRange := resp.pbResp.Range
@@ -1380,6 +1385,9 @@ func (worker *copIteratorWorker) handleCopPagingResult(bo *Backoffer, rpcCtx *ti
 
 	// calculate next ranges and grow the paging size
 	task.ranges = worker.calculateRemain(task.ranges, pagingRange, worker.req.Desc)
+	if worker.isOuterSQL {
+		logutil.BgLogger().Info("gjt debug worker.handleCopResponse done ok", zap.Any("pagingRange", resp.pbResp.Range), zap.Any("tasks.ranges", task.ranges))
+	}
 	if task.ranges.Len() == 0 {
 		return nil, nil
 	}
