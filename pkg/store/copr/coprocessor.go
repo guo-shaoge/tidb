@@ -1720,6 +1720,17 @@ func (worker *copIteratorWorker) handleCopCache(task *copTask, resp *copResponse
 		zap.Any("IsCacheHit", resp.pbResp.IsCacheHit),
 		zap.Any("canBeCached", resp.pbResp.CanBeCached),
 		zap.Any("CacheLastVersion", resp.pbResp.CacheLastVersion))
+		if resp.detail != nil {
+			logutil.BgLogger().Info("gjt debug handleCopResponse",
+			zap.Any("proc time", resp.detail.TimeDetail.ProcessTime),
+			zap.Any("pagingTaskIdx", task.pagingTaskIdx),
+			zap.Any("paging", worker.req.Paging.Enable),
+			zap.Any("cacheKey", cacheKey),
+			zap.Any("stack", string(debug.Stack())),
+			zap.Any("IsCacheHit", resp.pbResp.IsCacheHit),
+			zap.Any("canBeCached", resp.pbResp.CanBeCached),
+			zap.Any("CacheLastVersion", resp.pbResp.CacheLastVersion))
+		}
 	}
 	if resp.pbResp.IsCacheHit {
 		if cacheValue == nil {
