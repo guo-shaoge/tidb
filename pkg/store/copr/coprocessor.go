@@ -1645,7 +1645,12 @@ func (worker *copIteratorWorker) buildCacheKey(task *copTask, copReq *coprocesso
 	if task.cmdType == tikvrpc.CmdCop && worker.store.coprCache != nil && worker.req.Cacheable && worker.store.coprCache.CheckRequestAdmission(len(copReq.Ranges)) {
 		cKey, err := coprCacheBuildKey(copReq)
 		if worker.isOuterSQL {
-			logutil.BgLogger().Info("gjt debug coprCacheBuildKey", zap.Any("err", err), zap.Any("copReq", *copReq))
+			var dag tipb.DAGRequest
+			err := proto.Unmarshal(copReq.GetData(), &dag);
+			if err != nil {
+				panic(err)
+			}
+			logutil.BgLogger().Info("gjt debug coprCacheBuildKey", zap.Any("err", err), zap.Any("copReq", *copReq), zap.Any("copReq data", dag))
 		}
 		if err == nil {
 			cacheKey = cKey
