@@ -1644,8 +1644,18 @@ func (worker *copIteratorWorker) buildCacheKey(task *copTask, copReq *coprocesso
 			cValue := worker.store.coprCache.Get(cKey)
 			copReq.IsCacheEnabled = true
 
+			if cValue != nil {
+				logutil.BgLogger().Info("gjt debug cacheIfMatchVersion",
+				zap.Any("cValue", *cValue),
+				zap.Any("cValue regionid", cValue.RegionID),
+				zap.Any("task id", task.region.GetID()),
+				zap.Any("cValue ts", cValue.TimeStamp),
+				zap.Any("req TS", worker.req.StartTs),
+				zap.Any("cValue Version", cValue.RegionDataVersion))
+			} else {
+				logutil.BgLogger().Info("gjt debug cValue is nil")
+			}
 			if cValue != nil && cValue.RegionID == task.region.GetID() && cValue.TimeStamp <= worker.req.StartTs {
-			logutil.BgLogger().Info("gjt debug cacheIfMatchVersion")
 				// Append cache version to the request to skip Coprocessor computation if possible
 				// when request result is cached
 				copReq.CacheIfMatchVersion = cValue.RegionDataVersion
