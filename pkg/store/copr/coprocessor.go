@@ -26,6 +26,7 @@ import (
 	"time"
 	"unsafe"
 
+	"runtime/debug"
 	"github.com/gogo/protobuf/proto"
 	"github.com/pingcap/errors"
 	"github.com/pingcap/failpoint"
@@ -196,7 +197,7 @@ func (c *CopClient) BuildCopIterator(ctx context.Context, req *kv.Request, vars 
 		for i, t := range tasks {
 			pbRanges := t.ranges.ToPBRanges()
 			logutil.BgLogger().Info("gjt debug build copIterator", zap.Any("remains i", i), zap.Any("rangs", t.ranges.String()), zap.Any("pb ranges", len(pbRanges)),
-			zap.Any("paging", req.Paging.Enable))
+			zap.Any("paging", req.Paging.Enable), zap.Any("stack", string(debug.Stack())))
 		}
 	}
 	if it.concurrency > len(tasks) {
