@@ -1650,7 +1650,7 @@ func (worker *copIteratorWorker) buildCacheKey(task *copTask, copReq *coprocesso
 			if err != nil {
 				panic(err)
 			}
-			logutil.BgLogger().Info("gjt debug coprCacheBuildKey", zap.Any("err", err), zap.Any("copReq", *copReq), zap.Any("copReq data", dag))
+			logutil.BgLogger().Info("gjt debug coprCacheBuildKey", zap.Any("err", err), zap.Any("copReq", *copReq), zap.Any("copReq data", dag), zap.Any("cacheKey", cKey))
 		}
 		if err == nil {
 			cacheKey = cKey
@@ -1746,7 +1746,7 @@ func (worker *copIteratorWorker) handleCopCache(task *copTask, resp *copResponse
 			}
 			if worker.store.coprCache.CheckResponseAdmission(resp.pbResp.Data.Size(), resp.detail.TimeDetail.ProcessTime, task.pagingTaskIdx) {
 				if worker.isOuterSQL {
-					logutil.BgLogger().Info("gjt handle resp 3")
+					logutil.BgLogger().Info("gjt handle resp 3", zap.Any("cacheKey", cacheKey))
 				}
 				data := make([]byte, len(resp.pbResp.Data))
 				copy(data, resp.pbResp.Data)
