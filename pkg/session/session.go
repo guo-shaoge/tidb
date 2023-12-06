@@ -19,6 +19,7 @@
 package session
 
 import (
+	"runtime/debug"
 	"bytes"
 	"context"
 	"crypto/tls"
@@ -1626,6 +1627,7 @@ func (s *session) ClearDiskFullOpt() {
 }
 
 func (s *session) ExecuteInternal(ctx context.Context, sql string, args ...interface{}) (rs sqlexec.RecordSet, err error) {
+	logutil.BgLogger().Info("gjt debug internal", zap.Any("stack", string(debug.Stack())))
 	origin := s.sessionVars.InRestrictedSQL
 	s.sessionVars.InRestrictedSQL = true
 	defer func() {
