@@ -1277,6 +1277,18 @@ func (worker *copIteratorWorker) handleTaskOnce(bo *Backoffer, task *copTask, ch
 	var remains []*copTask
 	if worker.req.Paging.Enable {
 		remains, err = worker.handleCopPagingResult(bo, rpcCtx, &copResponse{pbResp: copResp}, cacheKey, cacheValue, task, ch, costTime)
+		if worker.isOuterSQL {
+			if remains != nil && err == nil {
+				logutil.BgLogger().Info("gjt debug after handle paging task", zap.Any("remains", len(remains)))
+				for i, t := range remains {
+					pbRanges := t.ranges.ToPBRanges()
+					logutil.BgLogger().Info("gjt debug after handle paging task", zap.Any("remains i", i), zap.Any("rangs", *t.ranges), zap.Any("pb ranges", len(pbRanges)))
+				}
+				logutil.BgLogger().Info("gjt debug after handle paging task done")
+			} else {
+				logutil.BgLogger().Info("gjt debug after handle paging task", zap.Any("err", err))
+			}
+		}
 	} else {
 		// Handles the response for non-paging copTask.
 		remains, err = worker.handleCopResponse(bo, rpcCtx, &copResponse{pbResp: copResp}, cacheKey, cacheValue, task, ch, nil, costTime)
