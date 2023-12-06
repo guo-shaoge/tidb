@@ -1719,7 +1719,10 @@ func (worker *copIteratorWorker) handleCopCache(task *copTask, resp *copResponse
 	if cacheKey != nil && resp.pbResp.CanBeCached && resp.pbResp.CacheLastVersion > 0 {
 		logutil.BgLogger().Info("gjt handle resp 1")
 		if resp.detail != nil {
-			logutil.BgLogger().Info("gjt handle resp 2")
+			logutil.BgLogger().Info("gjt handle resp 2",
+			zap.Any("coprCache is nil", worker.store.coprCache == nil),
+			zap.Any("proc time", resp.detail.TimeDetail.ProcessTime),
+			zap.Any("pagingTaskIdx", task.pagingTaskIdx))
 			if worker.store.coprCache.CheckResponseAdmission(resp.pbResp.Data.Size(), resp.detail.TimeDetail.ProcessTime, task.pagingTaskIdx) {
 				logutil.BgLogger().Info("gjt handle resp 3")
 				data := make([]byte, len(resp.pbResp.Data))

@@ -22,6 +22,8 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/pingcap/tidb/pkg/util/logutil"
+	"go.uber.org/zap"
 	"github.com/dgraph-io/ristretto"
 	"github.com/pingcap/errors"
 	"github.com/pingcap/kvproto/pkg/coprocessor"
@@ -193,6 +195,14 @@ func (c *coprCache) CheckResponseAdmission(dataSize int, processTime time.Durati
 	if c == nil {
 		return false
 	}
+	logutil.BgLogger().Info("gjt debug check resp cache",
+	zap.Any("max size", c.admissionMaxSize),
+	zap.Any("max range", c.admissionMaxRanges),
+	zap.Any("c.admissionMinProcessTime", c.admissionMinProcessTime),
+	zap.Any("pagingTaskIdx", pagingTaskIdx),
+	zap.Any("paging admissionMinProcessTime", c.admissionMinProcessTime / 3),
+	zap.Any("admissionMinProcessTime", c.admissionMinProcessTime),
+	zap.Any("processTime", processTime))
 	if dataSize == 0 || dataSize > c.admissionMaxSize {
 		return false
 	}
