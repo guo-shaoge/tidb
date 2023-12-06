@@ -1638,7 +1638,7 @@ func (worker *copIteratorWorker) buildCacheKey(task *copTask, copReq *coprocesso
 	zap.Any("Cacheable", worker.req.Cacheable), zap.Any("ranges", len(copReq.Ranges)))
 	if task.cmdType == tikvrpc.CmdCop && worker.store.coprCache != nil && worker.req.Cacheable && worker.store.coprCache.CheckRequestAdmission(len(copReq.Ranges)) {
 		cKey, err := coprCacheBuildKey(copReq)
-		logutil.BgLogger().Info("gjt debug coprCacheBuildKey", zap.Any("err", err))
+		logutil.BgLogger().Info("gjt debug coprCacheBuildKey", zap.Any("err", err), zap.Any("copReq", *copReq))
 		if err == nil {
 			cacheKey = cKey
 			cValue := worker.store.coprCache.Get(cKey)
