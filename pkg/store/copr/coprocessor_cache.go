@@ -214,9 +214,9 @@ func (c *coprCache) CheckResponseAdmission(dataSize int, processTime time.Durati
 	if pagingTaskIdx > 0 {
 		admissionMinProcessTime = admissionMinProcessTime / 3
 	}
-	if processTime < admissionMinProcessTime {
-		return false
-	}
+	// if processTime < admissionMinProcessTime {
+	// 	return false
+	// }
 	return true
 }
 
