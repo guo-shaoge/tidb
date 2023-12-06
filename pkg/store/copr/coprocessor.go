@@ -189,6 +189,7 @@ func (c *CopClient) BuildCopIterator(ctx context.Context, req *kv.Request, vars 
 		rpcCancel:        tikv.NewRPCanceller(),
 		buildTaskElapsed: *buildOpt.elapsed,
 		runawayChecker:   req.RunawayChecker,
+		isOuterSQL: option.IsOuterSQL,
 	}
 	it.tasks = tasks
 	if it.concurrency > len(tasks) {
@@ -701,6 +702,7 @@ type copIterator struct {
 	storeBatchedFallbackNum atomic.Uint64
 
 	runawayChecker *resourcegroup.RunawayChecker
+	isOuterSQL bool
 }
 
 // copIteratorWorker receives tasks from copIteratorTaskSender, handles tasks and sends the copResponse to respChan.
@@ -723,6 +725,7 @@ type copIteratorWorker struct {
 
 	storeBatchedNum         *atomic.Uint64
 	storeBatchedFallbackNum *atomic.Uint64
+	isOuterSQL bool
 }
 
 // copIteratorTaskSender sends tasks to taskCh then wait for the workers to exit.
@@ -857,6 +860,7 @@ func (it *copIterator) open(ctx context.Context, enabledRateLimitAction, enableC
 			pagingTaskIdx:              &it.pagingTaskIdx,
 			storeBatchedNum:            &it.storeBatchedNum,
 			storeBatchedFallbackNum:    &it.storeBatchedFallbackNum,
+			isOuterSQL: it.isOuterSQL,
 		}
 		go worker.run(ctx)
 	}
@@ -1633,27 +1637,33 @@ func (worker *copIteratorWorker) handleLockErr(bo *Backoffer, lockErr *kvrpcpb.L
 func (worker *copIteratorWorker) buildCacheKey(task *copTask, copReq *coprocessor.Request) (cacheKey []byte, cacheValue *coprCacheValue) {
 	// If there are many ranges, it is very likely to be a TableLookupRequest. They are not worth to cache since
 	// computing is not the main cost. Ignore requests with many ranges directly to avoid slowly building the cache key.
-	logutil.BgLogger().Info("gjt debug buildCacheKey",
-	zap.Any("cmdType", task.cmdType), zap.Any("coprCache is nil", worker.store.coprCache == nil),
-	zap.Any("Cacheable", worker.req.Cacheable), zap.Any("ranges", len(copReq.Ranges)))
+	if worker.isOuterSQL {
+		logutil.BgLogger().Info("gjt debug buildCacheKey",
+		zap.Any("cmdType", task.cmdType), zap.Any("coprCache is nil", worker.store.coprCache == nil),
+		zap.Any("Cacheable", worker.req.Cacheable), zap.Any("ranges", len(copReq.Ranges)))
+	}
 	if task.cmdType == tikvrpc.CmdCop && worker.store.coprCache != nil && worker.req.Cacheable && worker.store.coprCache.CheckRequestAdmission(len(copReq.Ranges)) {
 		cKey, err := coprCacheBuildKey(copReq)
-		logutil.BgLogger().Info("gjt debug coprCacheBuildKey", zap.Any("err", err), zap.Any("copReq", *copReq))
+		if worker.isOuterSQL {
+			logutil.BgLogger().Info("gjt debug coprCacheBuildKey", zap.Any("err", err), zap.Any("copReq", *copReq))
+		}
 		if err == nil {
 			cacheKey = cKey
 			cValue := worker.store.coprCache.Get(cKey)
 			copReq.IsCacheEnabled = true
 
-			if cValue != nil {
-				logutil.BgLogger().Info("gjt debug cacheIfMatchVersion",
-				zap.Any("cValue", *cValue),
-				zap.Any("cValue regionid", cValue.RegionID),
-				zap.Any("task id", task.region.GetID()),
-				zap.Any("cValue ts", cValue.TimeStamp),
-				zap.Any("req TS", worker.req.StartTs),
-				zap.Any("cValue Version", cValue.RegionDataVersion))
-			} else {
-				logutil.BgLogger().Info("gjt debug cValue is nil")
+			if worker.isOuterSQL {
+				if cValue != nil {
+					logutil.BgLogger().Info("gjt debug cacheIfMatchVersion",
+					zap.Any("cValue", *cValue),
+					zap.Any("cValue regionid", cValue.RegionID),
+					zap.Any("task id", task.region.GetID()),
+					zap.Any("cValue ts", cValue.TimeStamp),
+					zap.Any("req TS", worker.req.StartTs),
+					zap.Any("cValue Version", cValue.RegionDataVersion))
+				} else {
+					logutil.BgLogger().Info("gjt debug cValue is nil")
+				}
 			}
 			if cValue != nil && cValue.RegionID == task.region.GetID() && cValue.TimeStamp <= worker.req.StartTs {
 				// Append cache version to the request to skip Coprocessor computation if possible
@@ -1671,10 +1681,12 @@ func (worker *copIteratorWorker) buildCacheKey(task *copTask, copReq *coprocesso
 }
 
 func (worker *copIteratorWorker) handleCopCache(task *copTask, resp *copResponse, cacheKey []byte, cacheValue *coprCacheValue) error {
-	logutil.BgLogger().Info("gjt debug handleCopResponse",
-	zap.Any("IsCacheHit", resp.pbResp.IsCacheHit),
-	zap.Any("canBeCached", resp.pbResp.CanBeCached),
-	zap.Any("CacheLastVersion", resp.pbResp.CacheLastVersion))
+	if worker.isOuterSQL {
+		logutil.BgLogger().Info("gjt debug handleCopResponse",
+		zap.Any("IsCacheHit", resp.pbResp.IsCacheHit),
+		zap.Any("canBeCached", resp.pbResp.CanBeCached),
+		zap.Any("CacheLastVersion", resp.pbResp.CacheLastVersion))
+	}
 	if resp.pbResp.IsCacheHit {
 		if cacheValue == nil {
 			return errors.New("Internal error: received illegal TiKV response")
@@ -1717,14 +1729,20 @@ func (worker *copIteratorWorker) handleCopCache(task *copTask, resp *copResponse
 	copr_metrics.CoprCacheCounterMiss.Add(1)
 	// Cache not hit or cache hit but not valid: update the cache if the response can be cached.
 	if cacheKey != nil && resp.pbResp.CanBeCached && resp.pbResp.CacheLastVersion > 0 {
-		logutil.BgLogger().Info("gjt handle resp 1")
+		if worker.isOuterSQL {
+			logutil.BgLogger().Info("gjt handle resp 1")
+		}
 		if resp.detail != nil {
-			logutil.BgLogger().Info("gjt handle resp 2",
-			zap.Any("coprCache is nil", worker.store.coprCache == nil),
-			zap.Any("proc time", resp.detail.TimeDetail.ProcessTime),
-			zap.Any("pagingTaskIdx", task.pagingTaskIdx))
+			if worker.isOuterSQL {
+				logutil.BgLogger().Info("gjt handle resp 2",
+				zap.Any("coprCache is nil", worker.store.coprCache == nil),
+				zap.Any("proc time", resp.detail.TimeDetail.ProcessTime),
+				zap.Any("pagingTaskIdx", task.pagingTaskIdx))
+			}
 			if worker.store.coprCache.CheckResponseAdmission(resp.pbResp.Data.Size(), resp.detail.TimeDetail.ProcessTime, task.pagingTaskIdx) {
-				logutil.BgLogger().Info("gjt handle resp 3")
+				if worker.isOuterSQL {
+					logutil.BgLogger().Info("gjt handle resp 3")
+				}
 				data := make([]byte, len(resp.pbResp.Data))
 				copy(data, resp.pbResp.Data)
 

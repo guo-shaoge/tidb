@@ -80,6 +80,7 @@ func Select(ctx context.Context, sctx sessionctx.Context, kvReq *kv.Request, fie
 		EnabledRateLimitAction:     enabledRateLimitAction,
 		EventCb:                    eventCb,
 		EnableCollectExecutionInfo: config.GetGlobalConfig().Instance.EnableCollectExecutionInfo.Load(),
+		IsOuterSQL:  !sctx.GetSessionVars().StmtCtx.InRestrictedSQL,
 	}
 
 	if kvReq.StoreType == kv.TiFlash {
