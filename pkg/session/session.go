@@ -3486,13 +3486,13 @@ func bootstrapSessionImpl(store kv.Storage, createSessionsImpl func(store kv.Sto
 	dom.SetupExtractHandle(extractWorkerSctxs)
 
 	// setup init stats loader
-	// initStatsCtx, err := createSession(store)
-	// if err != nil {
-	// 	return nil, err
-	// }
-	// if err = dom.LoadAndUpdateStatsLoop(subCtxs, initStatsCtx); err != nil {
-	// 	return nil, err
-	// }
+	initStatsCtx, err := createSession(store)
+	if err != nil {
+		return nil, err
+	}
+	if err = dom.LoadAndUpdateStatsLoop(subCtxs, initStatsCtx); err != nil {
+		return nil, err
+	}
 
 	// start TTL job manager after setup stats collector
 	// because TTL could modify a lot of columns, and need to trigger auto analyze
