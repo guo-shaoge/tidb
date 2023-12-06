@@ -195,7 +195,8 @@ func (c *CopClient) BuildCopIterator(ctx context.Context, req *kv.Request, vars 
 	if it.isOuterSQL {
 		for i, t := range tasks {
 			pbRanges := t.ranges.ToPBRanges()
-			logutil.BgLogger().Info("gjt debug build copIterator", zap.Any("remains i", i), zap.Any("rangs", t.ranges.String()), zap.Any("pb ranges", len(pbRanges)))
+			logutil.BgLogger().Info("gjt debug build copIterator", zap.Any("remains i", i), zap.Any("rangs", t.ranges.String()), zap.Any("pb ranges", len(pbRanges)),
+			zap.Any("paging", req.Paging.Enable))
 		}
 	}
 	if it.concurrency > len(tasks) {
@@ -1297,7 +1298,7 @@ func (worker *copIteratorWorker) handleTaskOnce(bo *Backoffer, task *copTask, ch
 		}
 	} else {
 		if worker.isOuterSQL {
-			logutil.BgLogger().Info("gjt debug after handle paging task non paging!!!", zap.Any("err", err))
+			logutil.BgLogger().Info("gjt debug after handle paging task non paging!!!", zap.Any("err", err), zap.Any("internal", isInternal))
 		}
 		// Handles the response for non-paging copTask.
 		remains, err = worker.handleCopResponse(bo, rpcCtx, &copResponse{pbResp: copResp}, cacheKey, cacheValue, task, ch, nil, costTime)
