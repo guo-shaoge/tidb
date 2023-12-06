@@ -1771,7 +1771,9 @@ func (worker *copIteratorWorker) handleCopCache(task *copTask, resp *copResponse
 				logutil.BgLogger().Info("gjt handle resp 2",
 				zap.Any("coprCache is nil", worker.store.coprCache == nil),
 				zap.Any("proc time", resp.detail.TimeDetail.ProcessTime),
-				zap.Any("pagingTaskIdx", task.pagingTaskIdx))
+				zap.Any("pagingTaskIdx", task.pagingTaskIdx),
+				zap.Any("paging", worker.req.Paging.Enable),
+				zap.Any("stack", string(debug.Stack())))
 			}
 			if worker.store.coprCache.CheckResponseAdmission(resp.pbResp.Data.Size(), resp.detail.TimeDetail.ProcessTime, task.pagingTaskIdx) {
 				if worker.isOuterSQL {
