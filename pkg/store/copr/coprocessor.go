@@ -1633,8 +1633,12 @@ func (worker *copIteratorWorker) handleLockErr(bo *Backoffer, lockErr *kvrpcpb.L
 func (worker *copIteratorWorker) buildCacheKey(task *copTask, copReq *coprocessor.Request) (cacheKey []byte, cacheValue *coprCacheValue) {
 	// If there are many ranges, it is very likely to be a TableLookupRequest. They are not worth to cache since
 	// computing is not the main cost. Ignore requests with many ranges directly to avoid slowly building the cache key.
+	logutil.BgLogger().Info("gjt debug buildCacheKey",
+	zap.Any("cmdType", task.cmdType), zap.Any("coprCache is nil", worker.store.coprCache == nil),
+	zap.Any("Cacheable", worker.req.Cacheable), zap.Any("ranges", len(copReq.Ranges)))
 	if task.cmdType == tikvrpc.CmdCop && worker.store.coprCache != nil && worker.req.Cacheable && worker.store.coprCache.CheckRequestAdmission(len(copReq.Ranges)) {
 		cKey, err := coprCacheBuildKey(copReq)
+		logutil.BgLogger().Info("gjt debug coprCacheBuildKey", zap.Any("err", err))
 		if err == nil {
 			cacheKey = cKey
 			cValue := worker.store.coprCache.Get(cKey)
