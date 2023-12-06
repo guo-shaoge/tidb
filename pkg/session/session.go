@@ -3382,12 +3382,12 @@ func bootstrapSessionImpl(store kv.Storage, createSessionsImpl func(store kv.Sto
 		return nil, err
 	}
 
-	if !config.GetGlobalConfig().Security.SkipGrantTable {
-		err = dom.LoadPrivilegeLoop(ses[3])
-		if err != nil {
-			return nil, err
-		}
-	}
+	// if !config.GetGlobalConfig().Security.SkipGrantTable {
+	// 	err = dom.LoadPrivilegeLoop(ses[3])
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
+	// }
 
 	// Rebuild sysvar cache in a loop
 	err = dom.LoadSysVarCacheLoop(ses[4])

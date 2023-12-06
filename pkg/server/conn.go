@@ -1723,6 +1723,10 @@ func (cc *clientConn) audit(eventType plugin.GeneralEvent) {
 // As the execution time of this function represents the performance of TiDB, we do time log and metrics here.
 // Some special queries like `load data` that does not return result, which is handled in handleFileTransInConn.
 func (cc *clientConn) handleQuery(ctx context.Context, sql string) (err error) {
+	logutil.BgLogger().Info("gjt debug outer sql")
+	defer func() {
+		logutil.BgLogger().Info("gjt debug outer sql done")
+	}()
 	defer trace.StartRegion(ctx, "handleQuery").End()
 	sessVars := cc.ctx.GetSessionVars()
 	sc := sessVars.StmtCtx
