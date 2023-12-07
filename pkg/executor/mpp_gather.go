@@ -18,6 +18,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/pingcap/tidb/pkg/util/logutil"
+	_"go.uber.org/zap"
 	"github.com/pingcap/errors"
 	"github.com/pingcap/tidb/pkg/distsql"
 	"github.com/pingcap/tidb/pkg/executor/internal/exec"
@@ -133,6 +135,7 @@ func (e *MPPGather) Next(ctx context.Context, chk *chunk.Chunk) error {
 		return nil
 	}
 	err := e.respIter.Next(ctx, chk)
+	logutil.BgLogger().Info("gjt debug mppgather got chunk")
 	if err != nil {
 		return err
 	}
