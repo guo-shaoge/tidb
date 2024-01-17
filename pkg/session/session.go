@@ -2601,6 +2601,8 @@ func (s *session) Close() {
 	if s.sessionPlanCache != nil {
 		s.sessionPlanCache.Close()
 	}
+	domain.GetDomain(s).TiFlashRUReporter.MergeAndClear(s.sessionVars.ConnectionID,
+		s.sessionVars.StmtCtx.TiFlashRU)
 }
 
 // GetSessionVars implements the context.Context interface.

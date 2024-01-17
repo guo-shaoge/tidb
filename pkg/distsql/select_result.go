@@ -47,7 +47,6 @@ import (
 	tikvmetrics "github.com/tikv/client-go/v2/metrics"
 	"github.com/tikv/client-go/v2/tikv"
 	"github.com/tikv/client-go/v2/tikvrpc"
-	clientutil "github.com/tikv/client-go/v2/util"
 	"go.uber.org/zap"
 	"golang.org/x/exp/maps"
 )
@@ -577,8 +576,8 @@ func (r *selectResult) updateCopRuntimeStats(ctx context.Context, copStats *copr
 		}
 	}
 
-	if ruDetailsRaw := ctx.Value(clientutil.RUDetailsCtxKey); ruDetailsRaw != nil && r.storeType == kv.TiFlash {
-		if err = execdetails.MergeTiFlashRUConsumption(r.selectResp.GetExecutionSummaries(), ruDetailsRaw.(*clientutil.RUDetails)); err != nil {
+	if r.storeType == kv.TiFlash {
+		if err := r.ctx.GetSessionVars().StmtCtx.TiFlashRU.MergeExecutionSummary(r.selectResp.GetExecutionSummaries()); err != nil {
 			return err
 		}
 	}

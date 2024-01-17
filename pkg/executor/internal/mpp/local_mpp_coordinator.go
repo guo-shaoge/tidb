@@ -44,7 +44,6 @@ import (
 	"github.com/pingcap/tidb/pkg/util/logutil"
 	"github.com/pingcap/tidb/pkg/util/memory"
 	"github.com/pingcap/tipb/go-tipb"
-	clientutil "github.com/tikv/client-go/v2/util"
 	"go.uber.org/zap"
 )
 
@@ -595,10 +594,8 @@ func (c *localMppCoordinator) handleAllReports() error {
 							RecordOneCopTask(-1, kv.TiFlash.Name(), report.mppReq.Meta.GetAddress(), detail)] = 0
 					}
 				}
-				if ruDetailsRaw := c.ctx.Value(clientutil.RUDetailsCtxKey); ruDetailsRaw != nil {
-					if err := execdetails.MergeTiFlashRUConsumption(report.executionSummaries, ruDetailsRaw.(*clientutil.RUDetails)); err != nil {
-						return err
-					}
+				if err := c.sessionCtx.GetSessionVars().StmtCtx.TiFlashRU.MergeExecutionSummary(report.executionSummaries); err != nil {
+					return err
 				}
 			}
 			distsql.FillDummySummariesForTiFlashTasks(c.sessionCtx.GetSessionVars().StmtCtx, "", kv.TiFlash.Name(), c.planIDs, recordedPlanIDs)

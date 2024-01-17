@@ -1454,6 +1454,7 @@ func (a *ExecStmt) FinishExecuteStmt(txnTS uint64, err error, hasMoreResults boo
 			executor_metrics.FairLockingTxnEffectiveCount.Inc()
 		}
 	}
+	domain.GetDomain(a.Ctx).TiFlashRUReporter.MergeAndClear(sessVars.ConnectionID, sessVars.StmtCtx.TiFlashRU)
 }
 
 func (a *ExecStmt) recordLastQueryInfo(err error) {

@@ -89,6 +89,7 @@ import (
 	"github.com/pingcap/tidb/pkg/util/sqlexec"
 	"github.com/pingcap/tidb/pkg/util/sqlkiller"
 	"github.com/pingcap/tidb/pkg/util/syncutil"
+	"github.com/pingcap/tidb/pkg/util/tiflash"
 	"github.com/tikv/client-go/v2/tikv"
 	"github.com/tikv/client-go/v2/txnkv/transaction"
 	pd "github.com/tikv/pd/client"
@@ -197,6 +198,8 @@ type Domain struct {
 
 	mdlCheckCh      chan struct{}
 	stopAutoAnalyze atomicutil.Bool
+
+	TiFlashRUReporter *tiflash.RUReporter
 }
 
 type mdlCheckTableInfo struct {
@@ -1089,6 +1092,10 @@ func NewDomain(store kv.Storage, ddlLease time.Duration, statsLease time.Duratio
 	do.sysProcesses = SysProcesses{mu: &sync.RWMutex{}, procMap: make(map[uint64]sessionctx.Context)}
 	do.initDomainSysVars()
 	do.expiredTimeStamp4PC.expiredTimeStamp = types.NewTime(types.ZeroCoreTime, mysql.TypeTimestamp, types.DefaultFsp)
+	var err error
+	if do.TiFlashRUReporter, err = tiflash.NewRUReporter(do.GetPDClient(), do.exit); err != nil {
+		return nil
+	}
 	return do
 }
 

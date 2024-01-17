@@ -2,7 +2,19 @@ load("@io_bazel_rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "tiflash",
-    srcs = ["tiflash_replica_read.go"],
+    srcs = [
+        "ru_reporter.go",
+        "tiflash_replica_read.go",
+    ],
     importpath = "github.com/pingcap/tidb/pkg/util/tiflash",
     visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/logutil",
+        "@com_github_pingcap_errors//:errors",
+        "@com_github_pingcap_kvproto//pkg/resource_manager",
+        "@com_github_pingcap_tipb//go-tipb",
+        "@com_github_tikv_pd_client//:client",
+        "@org_uber_go_atomic//:atomic",
+        "@org_uber_go_zap//:zap",
+    ],
 )

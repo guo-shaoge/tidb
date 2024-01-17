@@ -44,6 +44,7 @@ import (
 	"github.com/pingcap/tidb/pkg/util/memory"
 	"github.com/pingcap/tidb/pkg/util/nocopy"
 	"github.com/pingcap/tidb/pkg/util/resourcegrouptag"
+	"github.com/pingcap/tidb/pkg/util/tiflash"
 	"github.com/pingcap/tidb/pkg/util/topsql/stmtstats"
 	"github.com/pingcap/tidb/pkg/util/tracing"
 	"github.com/tikv/client-go/v2/tikvrpc"
@@ -425,6 +426,8 @@ type StatementContext struct {
 		value *uint64
 		eval  func() (uint64, error)
 	}
+
+	TiFlashRU *tiflash.RUConsumption
 }
 
 var defaultErrLevels = func() (l errctx.LevelMap) {
@@ -441,7 +444,8 @@ func NewStmtCtx() *StatementContext {
 func NewStmtCtxWithTimeZone(tz *time.Location) *StatementContext {
 	intest.AssertNotNil(tz)
 	sc := &StatementContext{
-		ctxID: stmtCtxIDGenerator.Add(1),
+		ctxID:     stmtCtxIDGenerator.Add(1),
+		TiFlashRU: tiflash.NewRUConsumption(),
 	}
 	sc.typeCtx = types.NewContext(types.DefaultStmtFlags, tz, sc)
 	sc.errCtx = newErrCtx(sc.typeCtx, defaultErrLevels, sc)
@@ -451,7 +455,8 @@ func NewStmtCtxWithTimeZone(tz *time.Location) *StatementContext {
 // Reset resets a statement context
 func (sc *StatementContext) Reset() {
 	*sc = StatementContext{
-		ctxID: stmtCtxIDGenerator.Add(1),
+		ctxID:     stmtCtxIDGenerator.Add(1),
+		TiFlashRU: tiflash.NewRUConsumption(),
 	}
 	sc.typeCtx = types.NewContext(types.DefaultStmtFlags, time.UTC, sc)
 	sc.errCtx = newErrCtx(sc.typeCtx, defaultErrLevels, sc)
