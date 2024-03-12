@@ -61,6 +61,8 @@ func InitVectorFloat32(dims int) VectorFloat32 {
 // CheckVectorDimValid checks if the vector's dimension is valid.
 func CheckVectorDimValid(dim int) error {
 	const (
+		// Note: When changing this value, remember to update ColumnInfo::deserialize()
+		// in TiFlash as well.
 		maxVectorDimension = 16000
 	)
 	if dim < 0 {

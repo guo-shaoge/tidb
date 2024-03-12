@@ -222,6 +222,10 @@ func (p *PhysicalTableScan) ToPB(ctx sessionctx.Context, storeType kv.StoreType)
 	if storeType == kv.TiFlash && p.Table.GetPartitionInfo() != nil && p.IsMPPOrBatchCop && p.ctx.GetSessionVars().StmtCtx.UseDynamicPartitionPrune() {
 		return p.partitionTableScanToPBForFlash(ctx)
 	}
+
+	sc := ctx.GetSessionVars().StmtCtx
+	client := ctx.GetClient()
+
 	tsExec := tables.BuildTableScanFromInfos(p.Table, p.Columns)
 	tsExec.Desc = p.Desc
 	keepOrder := p.KeepOrder
@@ -229,13 +233,16 @@ func (p *PhysicalTableScan) ToPB(ctx sessionctx.Context, storeType kv.StoreType)
 	tsExec.IsFastScan = &(ctx.GetSessionVars().TiFlashFastScan)
 
 	if len(p.LateMaterializationFilterCondition) > 0 {
-		sc := ctx.GetSessionVars().StmtCtx
-		client := ctx.GetClient()
 		conditions, err := expression.ExpressionsToPBList(sc, p.LateMaterializationFilterCondition, client)
 		if err != nil {
 			return nil, err
 		}
 		tsExec.PushedDownFilterConditions = conditions
+	}
+
+	if p.annQuery != nil {
+		annQueryCopy := *p.annQuery
+		tsExec.AnnQuery = &annQueryCopy
 	}
 
 	if p.isPartition {

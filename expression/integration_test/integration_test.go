@@ -113,6 +113,42 @@ func TestVectorColumnInfo(t *testing.T) {
 	tk.MustGetErrMsg("create table t(embedding VECTOR<FLOAT>(16001))", "vector cannot have more than 16000 dimensions")
 }
 
+func TestVectorColumnWithIndex(t *testing.T) {
+	store := testkit.CreateMockStore(t)
+	tk := testkit.NewTestKit(t, store)
+	tk.MustExec("use test")
+	tk.MustExec("SET @@GLOBAL.TIDB_ENABLE_VECTOR_TYPE=1;")
+
+	tk.MustGetErrMsg(`CREATE TABLE t(c INT COMMENT 'hnsw(distance=l2)')`, "HNSW index can only be defined on fixed-dimention vector columns")
+	tk.MustGetErrMsg(`CREATE TABLE t(c VECTOR COMMENT 'hnsw(distance=l2)')`, "HNSW index can only be defined on fixed-dimention vector columns")
+	tk.MustGetErrMsg(`CREATE TABLE t(c VECTOR(0) COMMENT 'hnsw(distance=l2)')`, "HNSW index can only be defined on fixed-dimention vector columns")
+	tk.MustGetErrMsg(`CREATE TABLE t(c VECTOR(0) COMMENT 'hnsw(distance=abc)')`, "unsupported HNSW distance metric 'abc', available values: l2, cosine")
+
+	tk.MustExec(`CREATE TABLE t(c INT)`)
+	tk.MustGetErrMsg(`ALTER TABLE t MODIFY COLUMN c INT COMMENT 'hnsw(distance=l2)'`, "HNSW index can only be defined on fixed-dimention vector columns")
+	tk.MustGetErrMsg(`ALTER TABLE t ADD COLUMN embedding VECTOR(5) COMMENT 'hnsw(distance=l2)'`, "currently HNSW index can be only defined when creating the table")
+	tk.MustExec(`DROP TABLE t`)
+
+	tk.MustExec(`CREATE TABLE t(c VECTOR(5))`)
+	tk.MustGetErrMsg(`ALTER TABLE t MODIFY COLUMN c VECTOR(5) COMMENT 'hnsw(distance=l2)'`, "currently HNSW index can be only defined when creating the table")
+	tk.MustGetErrMsg(`ALTER TABLE t ADD INDEX idx (c)`, "currently vector column index can be only specified via column comment")
+	tk.MustExec(`DROP TABLE t`)
+
+	tk.MustGetErrMsg(`CREATE TABLE t(c VECTOR KEY)`, "currently vector column index can be only specified via column comment")
+	tk.MustGetErrMsg(`CREATE TABLE t(c VECTOR(5) KEY)`, "currently vector column index can be only specified via column comment")
+	tk.MustGetErrMsg(`CREATE TABLE t(c VECTOR(5) PRIMARY KEY)`, "currently vector column index can be only specified via column comment")
+
+	tk.MustExec(`CREATE TABLE t(c VECTOR(5) COMMENT 'hnsw(distance=l2)')`)
+	tk.MustGetErrMsg(`ALTER TABLE t MODIFY COLUMN c VECTOR(5)`, "currently HNSW index can not be removed")
+	tk.MustGetErrMsg(`ALTER TABLE t MODIFY COLUMN c VECTOR(5) COMMENT 'hnsw(distance=cosine)'`, "currently HNSW index cannot be modified")
+	tk.MustExec(`ALTER TABLE t MODIFY COLUMN c VECTOR(5) COMMENT 'hnsw( distance = l2 )'`) // Comment changed, index not changed
+	tk.MustGetErrMsg(`ALTER TABLE t MODIFY COLUMN c VECTOR COMMENT 'hnsw(distance=l2)'`, "HNSW index can only be defined on fixed-dimention vector columns")
+	tk.MustGetErrMsg(`ALTER TABLE t MODIFY COLUMN c VECTOR(7) COMMENT 'hnsw(distance=l2)'`, "cannot modify vector column's dimention when HNSW index is defined")
+	tk.MustGetErrMsg(`ALTER TABLE t MODIFY COLUMN c INT COMMENT 'hnsw(distance=l2)'`, "HNSW index can only be defined on fixed-dimention vector columns")
+	tk.MustGetErrMsg(`ALTER TABLE t MODIFY COLUMN c INT`, "currently HNSW index can not be removed")
+	tk.MustExec(`DROP TABLE t`)
+}
+
 func TestVectorConstantExplain(t *testing.T) {
 	store := testkit.CreateMockStore(t)
 	tk := testkit.NewTestKit(t, store)

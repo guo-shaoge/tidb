@@ -418,7 +418,10 @@ func postOptimize(ctx context.Context, sctx sessionctx.Context, plan PhysicalPla
 	propagateProbeParents(plan, nil)
 	countStarRewrite(plan)
 	disableReuseChunkIfNeeded(sctx, plan)
-	tryEnableLateMaterialization(sctx, plan)
+	if !tryEnableANNIndex(sctx, plan) {
+		// Only enable late mat when ANN index is not enabled.
+		tryEnableLateMaterialization(sctx, plan)
+	}
 	return plan, nil
 }
 
@@ -558,6 +561,10 @@ func prunePhysicalColumnsInternal(sctx sessionctx.Context, plan PhysicalPlan) er
 		}
 	}
 	return nil
+}
+
+func tryEnableANNIndex(sctx sessionctx.Context, plan PhysicalPlan) bool {
+	return addANNIndexHintToTableScan(sctx, plan)
 }
 
 // tryEnableLateMaterialization tries to push down some filter conditions to the table scan operator

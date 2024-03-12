@@ -2385,6 +2385,37 @@ func (d *ddl) CreateTable(ctx sessionctx.Context, s *ast.CreateTableStmt) (err e
 		return err
 	}
 
+	// A special rule on Serverless is to add TiFlash replica by default if there is a vector column.
+	{
+		hasVectorIndex := false
+		for _, col := range tbInfo.Columns {
+			if col.VectorIndex != nil {
+				hasVectorIndex = true
+				break
+			}
+		}
+
+		// Assign tabel level property HasVectorIndex.
+		// This is used by optimizer to fast check whether vector index
+		// specific rules should be applied.
+		// Note that Vector index can be only added when table is created, so that
+		// this is currently only place to assign the property.
+		tbInfo.HasVectorIndex = hasVectorIndex
+
+		if hasVectorIndex {
+			if tbInfo.TiFlashReplica == nil {
+				replicas, err := infoschema.GetTiFlashStoreCount(ctx)
+				if err == nil && replicas > 0 {
+					tbInfo.TiFlashReplica = &model.TiFlashReplicaInfo{
+						Count:          replicas,
+						LocationLabels: make([]string, 0),
+						Available:      false,
+					}
+				}
+			}
+		}
+	}
+
 	onExist := OnExistError
 	if s.IfNotExists {
 		onExist = OnExistIgnore
@@ -3831,6 +3862,11 @@ func CreateNewColumn(ctx sessionctx.Context, ti ast.Ident, schema *model.DBInfo,
 		return nil, errors.Trace(err)
 	}
 
+	err = checkVectorIndexForColumnAdd(col)
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+
 	err = col.SetOriginDefaultValue(originDefVal)
 	return col, err
 }
@@ -4738,6 +4774,37 @@ func checkModifyCharsetAndCollation(toCharset, toCollate, origCharset, origColla
 	return nil
 }
 
+// checkVectorIndexForColumnModify checks Vector Index constraints for ADD COLUMN.
+func checkVectorIndexForColumnAdd(newCol *table.Column) error {
+	if newCol.VectorIndex != nil {
+		return errors.Errorf("currently HNSW index can be only defined when creating the table")
+	}
+	return nil
+}
+
+// checkVectorIndexForColumnModify checks Vector Index constraints for MODIFY COLUMN.
+func checkVectorIndexForColumnModify(oldCol *table.Column, newCol *table.Column) error {
+	if oldCol.VectorIndex == nil && newCol.VectorIndex == nil {
+		return nil
+	}
+	if oldCol.VectorIndex == nil && newCol.VectorIndex != nil {
+		return errors.Errorf("currently HNSW index can be only defined when creating the table")
+	}
+	if oldCol.VectorIndex != nil && newCol.VectorIndex == nil {
+		return errors.Errorf("currently HNSW index can not be removed")
+	}
+	if oldCol.FieldType.GetFlen() != newCol.FieldType.GetFlen() {
+		return errors.New("cannot modify vector column's dimention when HNSW index is defined")
+	}
+	if oldCol.FieldType.GetType() != newCol.FieldType.GetType() {
+		return errors.New("cannot modify column data type when HNSW index is defined")
+	}
+	if *(oldCol.VectorIndex) != *(newCol.VectorIndex) {
+		return errors.New("currently HNSW index cannot be modified")
+	}
+	return nil
+}
+
 // checkModifyTypes checks if the 'origin' type can be modified to 'to' type no matter directly change
 // or change by reorg. It returns error if the two types are incompatible and correlated change are not
 // supported. However, even the two types can be change, if the "origin" type contains primary key, error will be returned.
@@ -4820,7 +4887,25 @@ func setColumnComment(ctx sessionctx.Context, col *table.Column, option *ast.Col
 		return errors.Trace(err)
 	}
 	col.Comment, err = validateCommentLength(ctx.GetSessionVars(), col.Name.L, &col.Comment, dbterror.ErrTooLongFieldComment)
-	return errors.Trace(err)
+	if err != nil {
+		return errors.Trace(err)
+	}
+
+	// Sync parsed HNSW index definition in the comment
+	vi, err := model.ParseVectorIndexDefFromComment(col.Comment)
+	if err != nil {
+		return errors.Trace(err)
+	}
+	if vi != nil {
+		if !col.FieldType.EvalType().IsVectorKind() || col.FieldType.GetFlen() <= 0 {
+			return errors.Errorf("HNSW index can only be defined on fixed-dimention vector columns")
+		}
+		vi.Dimension = uint64(col.FieldType.GetFlen())
+	}
+
+	col.VectorIndex = vi
+
+	return nil
 }
 
 // processColumnOptions is only used in getModifiableColumnJob.
@@ -5038,6 +5123,11 @@ func GetModifiableColumnJob(
 	}
 
 	if err = processColumnOptions(sctx, newCol, specNewColumn.Options); err != nil {
+		return nil, errors.Trace(err)
+	}
+
+	// Currently there are some limits when modifying column with HNSW index.
+	if err = checkVectorIndexForColumnModify(col, newCol); err != nil {
 		return nil, errors.Trace(err)
 	}
 
