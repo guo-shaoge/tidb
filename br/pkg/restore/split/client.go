@@ -630,7 +630,7 @@ func (c *pdClient) SetStoresLabel(
 }
 
 func (c *pdClient) getPDAPIAddr() string {
-	addr := c.client.GetLeaderAddr()
+	addr := c.client.GetLeaderURL()
 	if addr != "" && !strings.HasPrefix(addr, "http") {
 		addr = "http://" + addr
 	}

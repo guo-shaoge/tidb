@@ -361,7 +361,7 @@ func NewImportControllerWithPauser(
 		}
 
 		if cfg.TikvImporter.DuplicateResolution != config.DupeResAlgNone {
-			if err := tikv.CheckTiKVVersion(ctx, tls, pdCli.GetLeaderAddr(), minTiKVVersionForDuplicateResolution, maxTiKVVersionForDuplicateResolution); err != nil {
+			if err := tikv.CheckTiKVVersion(ctx, tls, pdCli.GetLeaderURL(), minTiKVVersionForDuplicateResolution, maxTiKVVersionForDuplicateResolution); err != nil {
 				if berrors.Is(err, berrors.ErrVersionMismatch) {
 					log.FromContext(ctx).Warn("TiKV version doesn't support duplicate resolution. The resolution algorithm will fall back to 'none'", zap.Error(err))
 					cfg.TikvImporter.DuplicateResolution = config.DupeResAlgNone
@@ -1415,7 +1415,7 @@ const (
 
 func (rc *Controller) keepPauseGCForDupeRes(ctx context.Context) (<-chan struct{}, error) {
 	tlsOpt := rc.tls.ToPDSecurityOption()
-	pdCli, err := pd.NewClientWithAPIContext(ctx, rc.apiContext, []string{rc.pdCli.GetLeaderAddr()}, tlsOpt)
+	pdCli, err := pd.NewClientWithAPIContext(ctx, rc.apiContext, []string{rc.pdCli.GetLeaderURL()}, tlsOpt)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -1579,7 +1579,7 @@ func (rc *Controller) importTables(ctx context.Context) (finalErr error) {
 
 		// Disable GC because TiDB enables GC already.
 
-		currentLeaderAddr := rc.pdCli.GetLeaderAddr()
+		currentLeaderAddr := rc.pdCli.GetLeaderURL()
 		// remove URL scheme
 		currentLeaderAddr = strings.TrimPrefix(currentLeaderAddr, "http://")
 		currentLeaderAddr = strings.TrimPrefix(currentLeaderAddr, "https://")
@@ -1811,7 +1811,7 @@ func (rc *Controller) importTables(ctx context.Context) (finalErr error) {
 }
 
 func (rc *Controller) registerTaskToPD(ctx context.Context) (undo func(), _ error) {
-	etcdCli, err := dialEtcdWithCfg(ctx, rc.cfg, rc.pdCli.GetLeaderAddr())
+	etcdCli, err := dialEtcdWithCfg(ctx, rc.cfg, rc.pdCli.GetLeaderURL())
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -1978,7 +1978,7 @@ func (rc *Controller) fullCompact(ctx context.Context) error {
 }
 
 func (rc *Controller) doCompact(ctx context.Context, level int32) error {
-	tls := rc.tls.WithHost(rc.pdCli.GetLeaderAddr())
+	tls := rc.tls.WithHost(rc.pdCli.GetLeaderURL())
 	return tikv.ForAllStores(
 		ctx,
 		tls,
@@ -2231,7 +2231,7 @@ func (rc *Controller) preCheckRequirements(ctx context.Context) error {
 		rc.status.TotalFileSize.Store(estimatedSizeResult.SizeWithoutIndex)
 	}
 	if isPhysicalBackend(rc.cfg) {
-		pdController, err := pdutil.NewPdController(ctx, rc.keyspaceName, rc.pdCli.GetLeaderAddr(),
+		pdController, err := pdutil.NewPdController(ctx, rc.keyspaceName, rc.pdCli.GetLeaderURL(),
 			rc.tls.TLSConfig(), rc.tls.ToPDSecurityOption())
 		if err != nil {
 			return common.NormalizeOrWrapErr(common.ErrCreatePDClient, err)

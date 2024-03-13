@@ -72,9 +72,9 @@ type DetectorClient struct {
 	streamConn   *grpc.ClientConn
 }
 
-// getLeaderAddr will send request to pd to find out the
+// getLeaderURL will send request to pd to find out the
 // current leader node for the first region
-func (dt *DetectorClient) getLeaderAddr() (string, error) {
+func (dt *DetectorClient) getLeaderURL() (string, error) {
 	// find first region from pd, get the first region leader
 	ctx := context.Background()
 	region, err := dt.pdClient.GetRegion(ctx, []byte{})
@@ -90,14 +90,14 @@ func (dt *DetectorClient) getLeaderAddr() (string, error) {
 		log.Error("get store failed", zap.Uint64("id", region.Leader.GetStoreId()), zap.Error(err))
 		return "", err
 	}
-	log.Warn("getLeaderAddr", zap.Stringer("leader peer", region.Leader), zap.String("addr", leaderStoreMeta.GetAddress()))
+	log.Warn("getLeaderURL", zap.Stringer("leader peer", region.Leader), zap.String("addr", leaderStoreMeta.GetAddress()))
 	return leaderStoreMeta.GetAddress(), nil
 }
 
 // rebuildStreamClient builds connection to the first region leader,
 // it's not thread safe and should be called only by `DetectorClient.Start` or `DetectorClient.SendReqLoop`
 func (dt *DetectorClient) rebuildStreamClient() error {
-	leaderAddr, err := dt.getLeaderAddr()
+	leaderAddr, err := dt.getLeaderURL()
 	if err != nil {
 		return err
 	}

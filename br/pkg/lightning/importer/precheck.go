@@ -93,7 +93,7 @@ func NewPrecheckItemBuilder(
 	}
 	// in tests we may not have a pdCli
 	if pdCli != nil {
-		leaderAddrGetter = pdCli.GetLeaderAddr
+		leaderAddrGetter = pdCli.GetLeaderURL
 	}
 	return &PrecheckItemBuilder{
 		cfg:                cfg,

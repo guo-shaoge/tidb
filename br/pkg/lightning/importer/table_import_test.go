@@ -1243,7 +1243,7 @@ type mockPDClient struct {
 	leaderAddr string
 }
 
-func (m *mockPDClient) GetLeaderAddr() string {
+func (m *mockPDClient) GetLeaderURL() string {
 	return m.leaderAddr
 }
 

@@ -174,11 +174,7 @@ func newMockPDServiceClient(addr string) pd.ServiceClient {
 	return &mockPDServiceClient{addr: addr}
 }
 
-func (c *mockPDServiceClient) GetAddress() string {
-	return c.addr
-}
-
-func (c *mockPDServiceClient) GetHTTPAddress() string {
+func (c *mockPDServiceClient) GetURL() string {
 	return c.addr
 }
 
@@ -241,9 +237,9 @@ func (c *mockPDServiceDiscovery) GetServingEndpointClientConn() *grpc.ClientConn
 
 func (c *mockPDServiceDiscovery) GetClientConns() *sync.Map { return nil }
 
-func (c *mockPDServiceDiscovery) GetServingAddr() string { return "" }
+func (c *mockPDServiceDiscovery) GetServingURL() string { return "" }
 
-func (c *mockPDServiceDiscovery) GetBackupAddrs() []string { return nil }
+func (c *mockPDServiceDiscovery) GetBackupURLs() []string { return nil }
 
 func (c *mockPDServiceDiscovery) GetServiceClient() pd.ServiceClient {
 	if len(c.clis) > 0 {
@@ -256,7 +252,7 @@ func (c *mockPDServiceDiscovery) GetAllServiceClients() []pd.ServiceClient {
 	return c.clis
 }
 
-func (c *mockPDServiceDiscovery) GetOrCreateGRPCConn(addr string) (*grpc.ClientConn, error) {
+func (c *mockPDServiceDiscovery) GetOrCreateGRPCConn(url string) (*grpc.ClientConn, error) {
 	return nil, nil
 }
 
@@ -264,9 +260,9 @@ func (c *mockPDServiceDiscovery) ScheduleCheckMemberChanged() {}
 
 func (c *mockPDServiceDiscovery) CheckMemberChanged() error { return nil }
 
-func (c *mockPDServiceDiscovery) AddServingAddrSwitchedCallback(callbacks ...func()) {}
+func (c *mockPDServiceDiscovery) AddServingURLSwitchedCallback(callbacks ...func()) {}
 
-func (c *mockPDServiceDiscovery) AddServiceAddrsSwitchedCallback(callbacks ...func()) {}
+func (c *mockPDServiceDiscovery) AddServiceURLsSwitchedCallback(callbacks ...func()) {}
 
 type mockTSFuture struct {
 	pdc  *pdClient
@@ -282,7 +278,7 @@ func (m *mockTSFuture) Wait() (int64, int64, error) {
 	return m.pdc.GetTS(m.ctx)
 }
 
-func (c *pdClient) GetLeaderAddr() string { return "mockpd" }
+func (c *pdClient) GetLeaderURL() string { return "mockpd" }
 
 func (c *pdClient) UpdateServiceGCSafePoint(ctx context.Context, serviceID string, ttl int64, safePoint uint64) (uint64, error) {
 	c.gcSafePointMu.Lock()

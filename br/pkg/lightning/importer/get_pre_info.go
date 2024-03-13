@@ -236,7 +236,7 @@ func (g *TargetInfoGetterImpl) GetTargetSysVariablesForImport(ctx context.Contex
 // It uses the PD interface through TLS to get the information.
 func (g *TargetInfoGetterImpl) GetReplicationConfig(ctx context.Context) (*pdtypes.ReplicationConfig, error) {
 	result := new(pdtypes.ReplicationConfig)
-	if err := g.tls.WithHost(g.pdCli.GetLeaderAddr()).GetJSON(ctx, pdReplicate, nil, &result); err != nil {
+	if err := g.tls.WithHost(g.pdCli.GetLeaderURL()).GetJSON(ctx, pdReplicate, nil, &result); err != nil {
 		return nil, errors.Trace(err)
 	}
 	return result, nil
@@ -247,7 +247,7 @@ func (g *TargetInfoGetterImpl) GetReplicationConfig(ctx context.Context) (*pdtyp
 // It uses the PD interface through TLS to get the information.
 func (g *TargetInfoGetterImpl) GetStorageInfo(ctx context.Context) (*pdtypes.StoresInfo, error) {
 	result := new(pdtypes.StoresInfo)
-	if err := g.tls.WithHost(g.pdCli.GetLeaderAddr()).GetJSON(ctx, pdStores, nil, result); err != nil {
+	if err := g.tls.WithHost(g.pdCli.GetLeaderURL()).GetJSON(ctx, pdStores, nil, result); err != nil {
 		return nil, errors.Trace(err)
 	}
 	return result, nil
@@ -258,7 +258,7 @@ func (g *TargetInfoGetterImpl) GetStorageInfo(ctx context.Context) (*pdtypes.Sto
 // It uses the PD interface through TLS to get the information.
 func (g *TargetInfoGetterImpl) GetEmptyRegionsInfo(ctx context.Context) (*pdtypes.RegionsInfo, error) {
 	result := new(pdtypes.RegionsInfo)
-	if err := g.tls.WithHost(g.pdCli.GetLeaderAddr()).GetJSON(ctx, pdEmptyRegions, nil, &result); err != nil {
+	if err := g.tls.WithHost(g.pdCli.GetLeaderURL()).GetJSON(ctx, pdEmptyRegions, nil, &result); err != nil {
 		return nil, errors.Trace(err)
 	}
 	return result, nil

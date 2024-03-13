@@ -344,7 +344,7 @@ func parseVersion(versionBytes []byte) *semver.Version {
 func (p *PdController) getAllPDAddrs() []string {
 	ret := make([]string, 0, len(p.addrs)+1)
 	if p.pdClient != nil {
-		ret = append(ret, p.pdClient.GetLeaderAddr())
+		ret = append(ret, p.pdClient.GetLeaderURL())
 	}
 	ret = append(ret, p.addrs...)
 	return ret
