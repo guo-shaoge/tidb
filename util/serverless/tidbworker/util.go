@@ -41,7 +41,7 @@ func IsBgTaskMaster(taskType string) bool {
 	if GlobalTiDBWorkerManager == nil {
 		return false
 	}
-	enabled, _, err := loadBgTaskConfig(taskType)
+	enabled, _, err := loadBgTaskConfig(TaskWorkerType(taskType))
 	if err != nil {
 		logutil.BgLogger().Warn("[tidb-worker] failed to load worker config", zap.Error(err))
 		return false
