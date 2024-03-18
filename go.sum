@@ -1019,12 +1019,12 @@ github.com/tiancaiamao/gp v0.0.0-20221230034425-4025bc8a4d4a h1:J/YdBZ46WKpXsxsW
 github.com/tiancaiamao/gp v0.0.0-20221230034425-4025bc8a4d4a/go.mod h1:h4xBhSNtOeEosLJ4P7JyKXX7Cabg7AVkWCK5gV2vOrM=
 github.com/tidbcloud/aws-shared-provider/pkg/tidbworker/client v0.0.0-20240115055049-6b4e366cf857 h1:iRcGAV8L+OkYssviRVX//4+kQ6UiBAJJfsJifqhvF+s=
 github.com/tidbcloud/aws-shared-provider/pkg/tidbworker/client v0.0.0-20240115055049-6b4e366cf857/go.mod h1:SdqLGHHWBKoGwg/6pNABluHB4kzjunigT9GiH8v1A+M=
-github.com/tikv/client-go/v2 v2.0.8-0.20240314054243-d5fcee418f95 h1:0aUEj91C3mvsJ6oggjfYE682O1lN9dPWR39z9FdGqg8=
-github.com/tikv/client-go/v2 v2.0.8-0.20240314054243-d5fcee418f95/go.mod h1:ayP1Ez5CIduneAp28NeznvhebqmZedd2yS8E+UhrFcA=
+github.com/tikv/client-go/v2 v2.0.8-0.20240318071007-fb2a7c7eaa3c h1:kFti/6pmYL4hbhhvxpxp4yGgPF0ZAkH1vVO90TWSm8o=
+github.com/tikv/client-go/v2 v2.0.8-0.20240318071007-fb2a7c7eaa3c/go.mod h1:ywd9GgqzHI86RRE2fILY86CMUbIa0pT29Z0ujiNRzgQ=
 github.com/tikv/pd v0.0.0-20230420042919-0e0313adef1f h1:1BBlbLSCua+oK3xngEjPO2dj1oLcItJxhCzqYG6XANA=
 github.com/tikv/pd v0.0.0-20230420042919-0e0313adef1f/go.mod h1:2hGdvUNGLaCKLbEXC8JMiQz2JsbxEDCKGDOBGJTt0NQ=
-github.com/tikv/pd/client v0.0.0-20240314040809-c2c5d849cef5 h1:kR9t1CyRaJ89qi2Zu8ELYci3SYnvGGdX6BrWl6KUbdI=
-github.com/tikv/pd/client v0.0.0-20240314040809-c2c5d849cef5/go.mod h1:Z/QAgOt29zvwBTd0H6pdx45VO6KRNc/O/DzGkVmSyZg=
+github.com/tikv/pd/client v0.0.0-20240318054542-da3b6e381c9b h1:BiFQvT54X/UMNjqO/UXqp7IWl9bvIaOfNaraqdpo++g=
+github.com/tikv/pd/client v0.0.0-20240318054542-da3b6e381c9b/go.mod h1:Z/QAgOt29zvwBTd0H6pdx45VO6KRNc/O/DzGkVmSyZg=
 github.com/timakin/bodyclose v0.0.0-20221125081123-e39cf3fc478e h1:MV6KaVu/hzByHP0UvJ4HcMGE/8a6A4Rggc/0wx2AvJo=
 github.com/timakin/bodyclose v0.0.0-20221125081123-e39cf3fc478e/go.mod h1:27bSVNWSBOHm+qRp1T9qzaIpsWEP6TbUnei/43HK+PQ=
 github.com/tklauser/go-sysconf v0.3.9/go.mod h1:11DU/5sG7UexIrp/O6g35hrWzu0JxlwQ3LSFUzyeuhs=
