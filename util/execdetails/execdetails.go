@@ -592,7 +592,17 @@ func (crs *CopRuntimeStats) RecordOneCopTask(address string, summary *tipb.Execu
 				totalDmfileReadTimeMs:              summary.GetTiflashScanContext().GetTotalDmfileReadTimeMs(),
 				totalCreateSnapshotTimeMs:          summary.GetTiflashScanContext().GetTotalCreateSnapshotTimeMs(),
 				totalLocalRegionNum:                summary.GetTiflashScanContext().GetTotalLocalRegionNum(),
-				totalRemoteRegionNum:               summary.GetTiflashScanContext().GetTotalRemoteRegionNum()}}, threads: int32(summary.GetConcurrency()),
+				totalRemoteRegionNum:               summary.GetTiflashScanContext().GetTotalRemoteRegionNum(),
+
+				totalVectorIdxLoadFromDisk:         summary.GetTiflashScanContext().GetTotalVectorIdxLoadFromDisk(),
+				totalVectorIdxLoadFromCache:        summary.GetTiflashScanContext().GetTotalVectorIdxLoadFromCache(),
+				totalVectorIdxLoadTimeMs:           summary.GetTiflashScanContext().GetTotalVectorIdxLoadTimeMs(),
+				totalVectorIdxSearchTimeMs:         summary.GetTiflashScanContext().GetTotalVectorIdxSearchTimeMs(),
+				totalVectorIdxSearchVisitedNodes:   summary.GetTiflashScanContext().GetTotalVectorIdxSearchVisitedNodes(),
+				totalVectorIdxSearchDiscardedNodes: summary.GetTiflashScanContext().GetTotalVectorIdxSearchDiscardedNodes(),
+				totalVectorIdxReadVecTimeMs:        summary.GetTiflashScanContext().GetTotalVectorIdxReadVecTimeMs(),
+				totalVectorIdxReadOthersTimeMs:     summary.GetTiflashScanContext().GetTotalVectorIdxReadOthersTimeMs(),
+			}}, threads: int32(summary.GetConcurrency()),
 		totalTasks: 1,
 	}
 	data.BasicRuntimeStats.loop.Store(int32(*summary.NumIterations))
@@ -726,6 +736,15 @@ type TiFlashScanContext struct {
 	totalCreateSnapshotTimeMs          uint64
 	totalLocalRegionNum                uint64
 	totalRemoteRegionNum               uint64
+
+	totalVectorIdxLoadFromDisk         uint64
+	totalVectorIdxLoadFromCache        uint64
+	totalVectorIdxLoadTimeMs           uint64
+	totalVectorIdxSearchTimeMs         uint64
+	totalVectorIdxSearchVisitedNodes   uint64
+	totalVectorIdxSearchDiscardedNodes uint64
+	totalVectorIdxReadVecTimeMs        uint64
+	totalVectorIdxReadOthersTimeMs     uint64
 }
 
 // Clone implements the deep copy of * TiFlashshScanContext
@@ -740,10 +759,42 @@ func (context *TiFlashScanContext) Clone() TiFlashScanContext {
 		totalCreateSnapshotTimeMs:          context.totalCreateSnapshotTimeMs,
 		totalLocalRegionNum:                context.totalLocalRegionNum,
 		totalRemoteRegionNum:               context.totalRemoteRegionNum,
+
+		totalVectorIdxLoadFromDisk:         context.totalVectorIdxLoadFromDisk,
+		totalVectorIdxLoadFromCache:        context.totalVectorIdxLoadFromCache,
+		totalVectorIdxLoadTimeMs:           context.totalVectorIdxLoadTimeMs,
+		totalVectorIdxSearchTimeMs:         context.totalVectorIdxSearchTimeMs,
+		totalVectorIdxSearchVisitedNodes:   context.totalVectorIdxSearchVisitedNodes,
+		totalVectorIdxSearchDiscardedNodes: context.totalVectorIdxSearchDiscardedNodes,
+		totalVectorIdxReadVecTimeMs:        context.totalVectorIdxReadVecTimeMs,
+		totalVectorIdxReadOthersTimeMs:     context.totalVectorIdxReadOthersTimeMs,
 	}
 }
 func (context *TiFlashScanContext) String() string {
-	return fmt.Sprintf("tiflash_scan:{dtfile:{total_scanned_packs:%d, total_skipped_packs:%d, total_scanned_rows:%d, total_skipped_rows:%d, total_rs_index_load_time: %dms, total_read_time: %dms}, total_create_snapshot_time: %dms, total_local_region_num: %d, total_remote_region_num: %d}", context.totalDmfileScannedPacks, context.totalDmfileSkippedPacks, context.totalDmfileScannedRows, context.totalDmfileSkippedRows, context.totalDmfileRoughSetIndexLoadTimeMs, context.totalDmfileReadTimeMs, context.totalCreateSnapshotTimeMs, context.totalLocalRegionNum, context.totalRemoteRegionNum)
+	var output []string
+
+	if context.totalVectorIdxLoadFromDisk+context.totalVectorIdxLoadFromCache > 0 {
+		var items []string
+		items = append(items, fmt.Sprintf("load:{total:%dms,from_disk:%d,from_cache:%d}", context.totalVectorIdxLoadTimeMs, context.totalVectorIdxLoadFromDisk, context.totalVectorIdxLoadFromCache))
+		items = append(items, fmt.Sprintf("search:{total:%dms,visited_nodes:%d,discarded_nodes:%d}", context.totalVectorIdxSearchTimeMs, context.totalVectorIdxSearchVisitedNodes, context.totalVectorIdxSearchDiscardedNodes))
+		items = append(items, fmt.Sprintf("read:{vec_total:%dms,others_total:%dms}", context.totalVectorIdxReadVecTimeMs, context.totalVectorIdxReadOthersTimeMs))
+		output = append(output, "vector_idx:{"+strings.Join(items, ",")+"}")
+	}
+
+	if context.totalDmfileScannedPacks+context.totalDmfileSkippedPacks > 0 {
+		var dtfileItems []string
+		dtfileItems = append(dtfileItems, fmt.Sprintf("scanned_packs:%d,skipped_packs:%d", context.totalDmfileScannedPacks, context.totalDmfileSkippedPacks))
+		dtfileItems = append(dtfileItems, fmt.Sprintf("scanned_rows:%d,skipped_rows:%d", context.totalDmfileScannedRows, context.totalDmfileSkippedRows))
+		dtfileItems = append(dtfileItems, fmt.Sprintf("total_rs_index_load:%dms", context.totalDmfileRoughSetIndexLoadTimeMs))
+		dtfileItems = append(dtfileItems, fmt.Sprintf("total_read:%dms", context.totalDmfileReadTimeMs))
+		var items []string
+		items = append(items, fmt.Sprintf("dtfile:{%s}", strings.Join(dtfileItems, ",")))
+		items = append(items, fmt.Sprintf("regions:{local:%d,remote:%d}", context.totalLocalRegionNum, context.totalRemoteRegionNum))
+		items = append(items, fmt.Sprintf("total_snapshot:%dms", context.totalCreateSnapshotTimeMs))
+		output = append(output, "tiflash_scan:{"+strings.Join(items, ",")+"}")
+	}
+
+	return strings.Join(output, ",")
 }
 
 // Merge make sum to merge the information in TiFlashScanContext
@@ -757,11 +808,23 @@ func (context *TiFlashScanContext) Merge(other TiFlashScanContext) {
 	context.totalCreateSnapshotTimeMs += other.totalCreateSnapshotTimeMs
 	context.totalLocalRegionNum += other.totalLocalRegionNum
 	context.totalRemoteRegionNum += other.totalRemoteRegionNum
+
+	context.totalVectorIdxLoadFromDisk += other.totalVectorIdxLoadFromDisk
+	context.totalVectorIdxLoadFromCache += other.totalVectorIdxLoadFromCache
+	context.totalVectorIdxLoadTimeMs += other.totalVectorIdxLoadTimeMs
+	context.totalVectorIdxSearchTimeMs += other.totalVectorIdxSearchTimeMs
+	context.totalVectorIdxSearchVisitedNodes += other.totalVectorIdxSearchVisitedNodes
+	context.totalVectorIdxSearchDiscardedNodes += other.totalVectorIdxSearchDiscardedNodes
+	context.totalVectorIdxReadVecTimeMs += other.totalVectorIdxReadVecTimeMs
+	context.totalVectorIdxReadOthersTimeMs += other.totalVectorIdxReadOthersTimeMs
 }
 
 // Empty check whether TiFlashScanContext is Empty, if scan no pack and skip no pack, we regard it as empty
 func (context *TiFlashScanContext) Empty() bool {
-	res := (context.totalDmfileScannedPacks == 0 && context.totalDmfileSkippedPacks == 0)
+	res := context.totalDmfileScannedPacks == 0 &&
+		context.totalDmfileSkippedPacks == 0 &&
+		context.totalVectorIdxLoadFromDisk == 0 &&
+		context.totalVectorIdxLoadFromCache == 0
 	return res
 }
 
