@@ -279,6 +279,12 @@ func (p *PhysicalTableScan) partitionTableScanToPBForFlash(ctx sessionctx.Contex
 	}
 
 	ptsExec.Desc = p.Desc
+
+	if p.annQuery != nil {
+		annQueryCopy := *p.annQuery
+		ptsExec.AnnQuery = &annQueryCopy
+	}
+
 	executorID := p.ExplainID().String()
 	err := tables.SetPBColumnsDefaultValue(ctx, ptsExec.Columns, p.Columns)
 	return &tipb.Executor{Tp: tipb.ExecType_TypePartitionTableScan, PartitionTableScan: ptsExec, ExecutorId: &executorID}, err
