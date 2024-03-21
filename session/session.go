@@ -3333,6 +3333,12 @@ func bootstrapSessionImpl(store kv.Storage, createSessionsImpl func(store kv.Sto
 		}
 	}
 
+	// Upgrade serverless version if necessary.
+	runServerlessUpgrade(store)
+
+	// Fix database users if it's a branch.
+	runBranchDBUsersAmendment(store)
+	
 	analyzeConcurrencyQuota := int(config.GetGlobalConfig().Performance.AnalyzePartitionConcurrencyQuota)
 	concurrency := int(config.GetGlobalConfig().Performance.StatsLoadConcurrency)
 	ses, err := createSessionsImpl(store, 10)
