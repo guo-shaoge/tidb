@@ -30,6 +30,7 @@ import (
 	"github.com/ngaut/pools"
 	"github.com/pingcap/errors"
 	"github.com/pingcap/failpoint"
+	"github.com/pingcap/kvproto/pkg/kvrpcpb"
 	"github.com/pingcap/kvproto/pkg/metapb"
 	"github.com/pingcap/kvproto/pkg/pdpb"
 	"github.com/pingcap/log"
@@ -49,7 +50,6 @@ import (
 	"github.com/pingcap/tidb/errno"
 	"github.com/pingcap/tidb/infoschema"
 	"github.com/pingcap/tidb/infoschema/perfschema"
-	"github.com/pingcap/tidb/keyspace"
 	"github.com/pingcap/tidb/kv"
 	"github.com/pingcap/tidb/meta"
 	"github.com/pingcap/tidb/meta/autoid"
@@ -1055,11 +1055,11 @@ func NewDomain(store kv.Storage, ddlLease time.Duration, statsLease time.Duratio
 
 const serverIDForStandalone = 1 // serverID for standalone deployment.
 
-func newEtcdCli(addrs []string, ebd kv.EtcdBackend) (*clientv3.Client, error) {
+func newEtcdCli(addrs []string, ebd kv.EtcdBackend, codec tikv.Codec) (*clientv3.Client, error) {
 	cfg := config.GetGlobalConfig()
 	etcdLogCfg := zap.NewProductionConfig()
 	etcdLogCfg.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
-	cli, err := clientv3.New(clientv3.Config{
+	cli, err := etcd.NewCodecClient(clientv3.Config{
 		LogConfig:        &etcdLogCfg,
 		Endpoints:        addrs,
 		AutoSyncInterval: 30 * time.Second,
@@ -1072,7 +1072,7 @@ func newEtcdCli(addrs []string, ebd kv.EtcdBackend) (*clientv3.Client, error) {
 			}),
 		},
 		TLS: ebd.TLSConfig(),
-	})
+	}, codec)
 	return cli, err
 }
 
@@ -1091,19 +1091,15 @@ func (do *Domain) Init(
 			return err
 		}
 		if addrs != nil {
-			cli, err := newEtcdCli(addrs, ebd)
+			codec := do.store.GetCodec()
+			cli, err := newEtcdCli(addrs, ebd, codec)
 			if err != nil {
 				return errors.Trace(err)
 			}
 
-			etcd.SetEtcdCliByNamespace(cli, keyspace.MakeKeyspaceEtcdNamespace(do.store.GetCodec()))
-
 			do.etcdClient = cli
-			do.autoidClient = autoid.NewClientDiscover(cli)
-
-			do.autoidClient = autoid.NewClientDiscover(cli)
-
-			unprefixedEtcdCli, err := newEtcdCli(addrs, ebd)
+			do.autoidClient = autoid.NewClientDiscover(cli, codec.GetAPIVersion() > kvrpcpb.APIVersion_V1)
+			unprefixedEtcdCli, err := newEtcdCli(addrs, ebd, nil)
 			if err != nil {
 				return errors.Trace(err)
 			}

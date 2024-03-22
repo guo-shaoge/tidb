@@ -43,9 +43,11 @@ import (
 	"github.com/pingcap/tidb/table"
 	"github.com/pingcap/tidb/types"
 	"github.com/pingcap/tidb/util/engine"
+	"github.com/pingcap/tidb/util/etcd"
 	"github.com/pingcap/tidb/util/mathutil"
 	"github.com/pingcap/tidb/util/set"
 	"github.com/pingcap/tidb/util/size"
+	tikvclient "github.com/tikv/client-go/v2/tikv"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.uber.org/zap"
 	"golang.org/x/exp/slices"
@@ -793,16 +795,18 @@ type CDCPITRCheckItem struct {
 	cfg              *config.Config
 	Instruction      string
 	leaderAddrGetter func() string
+	kvCodec          tikvclient.Codec
 	// used in test
 	etcdCli *clientv3.Client
 }
 
 // NewCDCPITRCheckItem creates a checker to check downstream has enabled CDC or PiTR.
-func NewCDCPITRCheckItem(cfg *config.Config, leaderAddrGetter func() string) precheck.Checker {
+func NewCDCPITRCheckItem(cfg *config.Config, leaderAddrGetter func() string, kvCodec tikvclient.Codec) precheck.Checker {
 	return &CDCPITRCheckItem{
 		cfg:              cfg,
 		Instruction:      "local backend is not compatible with them. Please switch to tidb backend then try again.",
 		leaderAddrGetter: leaderAddrGetter,
+		kvCodec:          kvCodec,
 	}
 }
 
@@ -815,6 +819,7 @@ func dialEtcdWithCfg(
 	ctx context.Context,
 	cfg *config.Config,
 	leaderAddr string,
+	kvCodec tikvclient.Codec,
 ) (*clientv3.Client, error) {
 	cfg2, err := cfg.ToTLS()
 	if err != nil {
@@ -822,7 +827,7 @@ func dialEtcdWithCfg(
 	}
 	tlsConfig := cfg2.TLSConfig()
 
-	return clientv3.New(clientv3.Config{
+	return etcd.NewCodecClient(clientv3.Config{
 		TLS:              tlsConfig,
 		Endpoints:        []string{leaderAddr},
 		AutoSyncInterval: 30 * time.Second,
@@ -833,7 +838,7 @@ func dialEtcdWithCfg(
 			grpc.WithReturnConnectionError(),
 		},
 		Context: ctx,
-	})
+	}, kvCodec)
 }
 
 // Check implements Checker interface.
@@ -851,7 +856,7 @@ func (ci *CDCPITRCheckItem) Check(ctx context.Context) (*precheck.CheckResult, e
 
 	if ci.etcdCli == nil {
 		var err error
-		ci.etcdCli, err = dialEtcdWithCfg(ctx, ci.cfg, ci.leaderAddrGetter())
+		ci.etcdCli, err = dialEtcdWithCfg(ctx, ci.cfg, ci.leaderAddrGetter(), ci.kvCodec)
 		if err != nil {
 			return nil, errors.Trace(err)
 		}

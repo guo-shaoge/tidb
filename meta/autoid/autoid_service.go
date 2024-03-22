@@ -48,6 +48,8 @@ type singlePointAlloc struct {
 type ClientDiscover struct {
 	// This the etcd client for service discover
 	etcdCli *clientv3.Client
+	// Indicates if the leader path starts with '/'
+	namespaecd bool
 	// This is the real client for the AutoIDAlloc service
 	mu struct {
 		sync.RWMutex
@@ -58,14 +60,21 @@ type ClientDiscover struct {
 	}
 }
 
-const (
-	autoIDLeaderPath = "tidb/autoid/leader"
-)
+// LeaderPath returns the leader path of autoid service.
+// If the client/server is using keyspace, the path will be prefixed with '/'.
+func LeaderPath(namespaced bool) string {
+	base := "tidb/autoid/leader"
+	if namespaced {
+		return "/" + base
+	}
+	return base
+}
 
 // NewClientDiscover creates a ClientDiscover object.
-func NewClientDiscover(etcdCli *clientv3.Client) *ClientDiscover {
+func NewClientDiscover(etcdCli *clientv3.Client, namespaced bool) *ClientDiscover {
 	return &ClientDiscover{
-		etcdCli: etcdCli,
+		etcdCli:    etcdCli,
+		namespaecd: namespaced,
 	}
 }
 
@@ -85,7 +94,7 @@ func (d *ClientDiscover) GetClient(ctx context.Context) (autoid.AutoIDAllocClien
 		return d.mu.AutoIDAllocClient, nil
 	}
 
-	resp, err := d.etcdCli.Get(ctx, autoIDLeaderPath, clientv3.WithFirstCreate()...)
+	resp, err := d.etcdCli.Get(ctx, LeaderPath(d.namespaecd), clientv3.WithFirstCreate()...)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}

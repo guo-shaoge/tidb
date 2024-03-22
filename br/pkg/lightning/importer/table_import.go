@@ -27,6 +27,7 @@ import (
 	dmysql "github.com/go-sql-driver/mysql"
 	"github.com/pingcap/errors"
 	"github.com/pingcap/failpoint"
+	"github.com/pingcap/kvproto/pkg/kvrpcpb"
 	"github.com/pingcap/tidb/br/pkg/lightning/backend"
 	"github.com/pingcap/tidb/br/pkg/lightning/backend/encode"
 	"github.com/pingcap/tidb/br/pkg/lightning/backend/kv"
@@ -94,7 +95,7 @@ func NewTableImporter(
 	if err != nil {
 		return nil, errors.Annotatef(err, "failed to tables.TableFromMeta %s", tableName)
 	}
-	autoidCli := autoid.NewClientDiscover(etcdCli)
+	autoidCli := autoid.NewClientDiscover(etcdCli, kvStore.GetCodec().GetAPIVersion() > kvrpcpb.APIVersion_V1)
 
 	return &TableImporter{
 		tableName:     tableName,

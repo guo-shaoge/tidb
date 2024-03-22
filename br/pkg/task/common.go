@@ -28,8 +28,10 @@ import (
 	"github.com/pingcap/tidb/br/pkg/metautil"
 	"github.com/pingcap/tidb/br/pkg/storage"
 	"github.com/pingcap/tidb/br/pkg/utils"
+	"github.com/pingcap/tidb/keyspace"
 	"github.com/pingcap/tidb/parser/model"
 	"github.com/pingcap/tidb/sessionctx/variable"
+	"github.com/pingcap/tidb/util/etcd"
 	filter "github.com/pingcap/tidb/util/table-filter"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -168,8 +170,23 @@ func (tls *TLSConfig) ParseFromFlags(flags *pflag.FlagSet) (err error) {
 func dialEtcdWithCfg(ctx context.Context, cfg Config) (*clientv3.Client, error) {
 	var (
 		tlsConfig *tls.Config
+		pdClient  pd.Client
 		err       error
 	)
+
+	pdClient, err = pd.NewClientWithContext(ctx, cfg.PD, pd.SecurityOption{
+		CAPath:   cfg.TLS.CA,
+		CertPath: cfg.TLS.Cert,
+		KeyPath:  cfg.TLS.Key,
+	})
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+
+	kvCodec, err := keyspace.CodecFromName(ctx, pdClient, cfg.KeyspaceName)
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
 
 	if cfg.TLS.IsEnabled() {
 		tlsConfig, err = cfg.TLS.ToTLSConfig()
@@ -178,7 +195,7 @@ func dialEtcdWithCfg(ctx context.Context, cfg Config) (*clientv3.Client, error) 
 		}
 	}
 	log.Info("trying to connect to etcd", zap.Strings("addr", cfg.PD))
-	etcdCLI, err := clientv3.New(clientv3.Config{
+	etcdCLI, err := etcd.NewCodecClient(clientv3.Config{
 		TLS:              tlsConfig,
 		Endpoints:        cfg.PD,
 		AutoSyncInterval: 30 * time.Second,
@@ -193,7 +210,7 @@ func dialEtcdWithCfg(ctx context.Context, cfg Config) (*clientv3.Client, error) 
 			grpc.WithReturnConnectionError(),
 		},
 		Context: ctx,
-	})
+	}, kvCodec)
 	if err != nil {
 		return nil, err
 	}

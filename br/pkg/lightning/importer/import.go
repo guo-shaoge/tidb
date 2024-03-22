@@ -71,6 +71,7 @@ import (
 	"github.com/pingcap/tidb/util/set"
 	"github.com/prometheus/client_golang/prometheus"
 	tikvconfig "github.com/tikv/client-go/v2/config"
+	tikvclient "github.com/tikv/client-go/v2/tikv"
 	pd "github.com/tikv/pd/client"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.uber.org/atomic"
@@ -242,6 +243,7 @@ type Controller struct {
 
 	keyspaceName string
 	apiContext   pd.APIContext
+	kvCodec      tikvclient.Codec
 }
 
 // LightningStatus provides the finished bytes and total bytes of the current task.
@@ -446,8 +448,13 @@ func NewImportControllerWithPauser(
 		return nil, errors.Trace(err)
 	}
 
+	kvCodec, err := keyspace.CodecFromName(ctx, pdCli, p.KeyspaceName)
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+
 	preCheckBuilder := NewPrecheckItemBuilder(
-		cfg, p.DBMetas, preInfoGetter, cpdb, pdCli,
+		cfg, p.DBMetas, preInfoGetter, cpdb, pdCli, kvCodec,
 	)
 
 	rc := &Controller{
@@ -490,6 +497,7 @@ func NewImportControllerWithPauser(
 
 		keyspaceName: p.KeyspaceName,
 		apiContext:   keyspace.BuildAPIContext(p.KeyspaceName),
+		kvCodec:      kvCodec,
 	}
 
 	return rc, nil
@@ -1590,15 +1598,15 @@ func (rc *Controller) importTables(ctx context.Context) (finalErr error) {
 		if err != nil {
 			return errors.Trace(err)
 		}
-		etcdCli, err := clientv3.New(clientv3.Config{
+
+		etcdCli, err = etcd.NewCodecClient(clientv3.Config{
 			Endpoints:        []string{rc.cfg.TiDB.PdAddr},
 			AutoSyncInterval: 30 * time.Second,
 			TLS:              rc.tls.TLSConfig(),
-		})
+		}, rc.kvCodec)
 		if err != nil {
 			return errors.Trace(err)
 		}
-		etcd.SetEtcdCliByNamespace(etcdCli, keyspace.MakeKeyspaceEtcdNamespace(kvStore.GetCodec()))
 
 		manager, err := NewChecksumManager(ctx, rc, kvStore)
 		if err != nil {
@@ -1811,7 +1819,7 @@ func (rc *Controller) importTables(ctx context.Context) (finalErr error) {
 }
 
 func (rc *Controller) registerTaskToPD(ctx context.Context) (undo func(), _ error) {
-	etcdCli, err := dialEtcdWithCfg(ctx, rc.cfg, rc.pdCli.GetLeaderURL())
+	etcdCli, err := dialEtcdWithCfg(ctx, rc.cfg, rc.pdCli.GetLeaderURL(), rc.kvCodec)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}

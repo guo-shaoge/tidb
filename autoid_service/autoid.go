@@ -24,11 +24,11 @@ import (
 	"github.com/pingcap/errors"
 	"github.com/pingcap/failpoint"
 	"github.com/pingcap/kvproto/pkg/autoid"
+	"github.com/pingcap/kvproto/pkg/kvrpcpb"
 	"github.com/pingcap/tidb/config"
-	"github.com/pingcap/tidb/keyspace"
 	"github.com/pingcap/tidb/kv"
 	"github.com/pingcap/tidb/meta"
-	autoid1 "github.com/pingcap/tidb/meta/autoid"
+	client "github.com/pingcap/tidb/meta/autoid"
 	"github.com/pingcap/tidb/metrics"
 	"github.com/pingcap/tidb/owner"
 	"github.com/pingcap/tidb/parser/model"
@@ -43,10 +43,6 @@ import (
 
 var (
 	errAutoincReadFailed = errors.New("auto increment action failed")
-)
-
-const (
-	autoIDLeaderPath = "tidb/autoid/leader"
 )
 
 type autoIDKey struct {
@@ -276,7 +272,7 @@ func New(selfAddr string, etcdAddr []string, store kv.Storage, tlsConfig *tls.Co
 	cfg := config.GetGlobalConfig()
 	etcdLogCfg := zap.NewProductionConfig()
 
-	cli, err := clientv3.New(clientv3.Config{
+	cli, err := etcd.NewCodecClient(clientv3.Config{
 		LogConfig:        &etcdLogCfg,
 		Endpoints:        etcdAddr,
 		AutoSyncInterval: 30 * time.Second,
@@ -289,11 +285,7 @@ func New(selfAddr string, etcdAddr []string, store kv.Storage, tlsConfig *tls.Co
 			}),
 		},
 		TLS: tlsConfig,
-	})
-
-	if store.GetCodec().GetKeyspace() != nil {
-		etcd.SetEtcdCliByNamespace(cli, keyspace.MakeKeyspaceEtcdNamespaceSlash(store.GetCodec()))
-	}
+	}, store.GetCodec())
 
 	if err != nil {
 		panic(err)
@@ -302,7 +294,13 @@ func New(selfAddr string, etcdAddr []string, store kv.Storage, tlsConfig *tls.Co
 }
 
 func newWithCli(selfAddr string, cli *clientv3.Client, store kv.Storage) *Service {
-	l := owner.NewOwnerManager(context.Background(), cli, "autoid", selfAddr, autoIDLeaderPath)
+	l := owner.NewOwnerManager(
+		context.Background(),
+		cli,
+		"autoid",
+		selfAddr,
+		client.LeaderPath(store.GetCodec().GetAPIVersion() > kvrpcpb.APIVersion_V1),
+	)
 	l.SetBeOwnerHook(func() {
 		logutil.BgLogger().Info("leader change of autoid service, this node become owner",
 			zap.String("addr", selfAddr),
@@ -569,5 +567,5 @@ func (s *Service) Rebase(ctx context.Context, req *autoid.RebaseRequest) (*autoi
 }
 
 func init() {
-	autoid1.MockForTest = MockForTest
+	client.MockForTest = MockForTest
 }

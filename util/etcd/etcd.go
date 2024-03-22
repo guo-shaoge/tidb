@@ -23,6 +23,8 @@ import (
 	"time"
 
 	"github.com/pingcap/errors"
+	"github.com/pingcap/tidb/keyspace"
+	"github.com/tikv/client-go/v2/tikv"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.etcd.io/etcd/client/v3/namespace"
 )
@@ -336,9 +338,24 @@ func keyWithPrefix(prefix, key string) string {
 	return path.Join(prefix, key)
 }
 
-// SetEtcdCliByNamespace is used to add an etcd namespace prefix before etcd path.
-func SetEtcdCliByNamespace(cli *clientv3.Client, namespacePrefix string) {
-	cli.KV = namespace.NewKV(cli.KV, namespacePrefix)
-	cli.Watcher = namespace.NewWatcher(cli.Watcher, namespacePrefix)
-	cli.Lease = namespace.NewLease(cli.Lease, namespacePrefix)
+func namespacedClient(cli *clientv3.Client, ns string) *clientv3.Client {
+	if ns == "" {
+		return cli
+	}
+
+	cli.KV = namespace.NewKV(cli.KV, ns)
+	cli.Watcher = namespace.NewWatcher(cli.Watcher, ns)
+	cli.Lease = namespace.NewLease(cli.Lease, ns)
+
+	return cli
+}
+
+// NewCodecClient creates a new client with the given etcd client config and keyspace codec.
+func NewCodecClient(cfg clientv3.Config, codec tikv.Codec) (*clientv3.Client, error) {
+	cli, err := clientv3.New(cfg)
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+
+	return namespacedClient(cli, keyspace.EtcdNamespace(codec)), nil
 }

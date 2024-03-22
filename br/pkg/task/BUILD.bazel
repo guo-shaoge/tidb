@@ -54,6 +54,7 @@ go_library(
         "//statistics/handle",
         "//types",
         "//util",
+        "//util/etcd",
         "//util/mathutil",
         "//util/sqlexec",
         "//util/table-filter",

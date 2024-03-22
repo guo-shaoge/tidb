@@ -15,6 +15,7 @@
 package keyspace
 
 import (
+	"context"
 	"crypto/tls"
 	"encoding/binary"
 	"fmt"
@@ -22,7 +23,6 @@ import (
 
 	"github.com/pingcap/kvproto/pkg/kvrpcpb"
 	"github.com/pingcap/tidb/config"
-	"github.com/pingcap/tidb/kv"
 	"github.com/pingcap/tidb/util/codec"
 	"github.com/pkg/errors"
 	"github.com/tikv/client-go/v2/tikv"
@@ -42,9 +42,9 @@ const (
 // CodecV1 represents api v1 codec.
 var CodecV1 = tikv.NewCodecV1(tikv.ModeTxn)
 
-// MakeKeyspaceEtcdNamespace return the keyspace prefix path for etcd namespace
-func MakeKeyspaceEtcdNamespace(c tikv.Codec) string {
-	if c.GetAPIVersion() == kvrpcpb.APIVersion_V1 {
+// EtcdNamespace return the keyspace prefix path for etcd namespace
+func EtcdNamespace(c tikv.Codec) string {
+	if c == nil || c.GetAPIVersion() == kvrpcpb.APIVersion_V1 {
 		return ""
 	}
 	return fmt.Sprintf(tidbKeyspaceEtcdPathPrefix+"%d", c.GetKeyspaceID())
@@ -79,11 +79,6 @@ func WrapZapcoreWithKeyspace(keyspaceID uint32) zap.Option {
 		}
 		return core
 	})
-}
-
-// IsKvStorageKeyspaceSet return true if you get keyspace meta successes
-func IsKvStorageKeyspaceSet(store kv.Storage) bool {
-	return store.GetCodec().GetKeyspace() != nil
 }
 
 // GetKeyspaceTxnPrefix return the keyspace txn prefix
@@ -133,19 +128,25 @@ func BuildAPIContext(keyspaceName string) (apiContext pd.APIContext) {
 	return
 }
 
-// MakeKeyspaceEtcdNamespaceSlash return the keyspace prefix path for etcd namespace, and end with a slash.
-func MakeKeyspaceEtcdNamespaceSlash(c tikv.Codec) string {
-	if c.GetAPIVersion() == kvrpcpb.APIVersion_V1 {
-		return ""
-	}
-	return fmt.Sprintf(tidbKeyspaceEtcdPathPrefix+"%d/", c.GetKeyspaceID())
-}
-
 // NewEtcdSafePointKV is used to add prefix when set keyspace.
 func NewEtcdSafePointKV(etcdAddrs []string, codec tikv.Codec, tlsConfig *tls.Config) (*tikv.EtcdSafePointKV, error) {
 	var etcdNameSpace string
 	if config.GetGlobalConfig().EnableSafePointV2 {
-		etcdNameSpace = MakeKeyspaceEtcdNamespace(codec)
+		etcdNameSpace = EtcdNamespace(codec)
 	}
 	return tikv.NewEtcdSafePointKV(etcdAddrs, tlsConfig, tikv.WithPrefix(etcdNameSpace))
+}
+
+// CodecFromName is used to get the corresponding codec according to the keyspace name.
+func CodecFromName(ctx context.Context, pdCli pd.Client, keyspaceName string) (tikv.Codec, error) {
+	if len(keyspaceName) == 0 {
+		return tikv.NewCodecV1(tikv.ModeTxn), nil
+	}
+
+	meta, err := pdCli.LoadKeyspace(ctx, keyspaceName)
+	if err != nil {
+		return nil, err
+	}
+
+	return tikv.NewCodecV2(tikv.ModeTxn, meta.Id)
 }

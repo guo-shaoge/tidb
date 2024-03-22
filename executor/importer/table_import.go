@@ -27,6 +27,7 @@ import (
 
 	"github.com/pingcap/errors"
 	"github.com/pingcap/failpoint"
+	"github.com/pingcap/kvproto/pkg/kvrpcpb"
 	"github.com/pingcap/tidb/br/pkg/lightning/backend"
 	"github.com/pingcap/tidb/br/pkg/lightning/backend/encode"
 	"github.com/pingcap/tidb/br/pkg/lightning/backend/kv"
@@ -39,7 +40,6 @@ import (
 	verify "github.com/pingcap/tidb/br/pkg/lightning/verification"
 	"github.com/pingcap/tidb/br/pkg/storage"
 	tidb "github.com/pingcap/tidb/config"
-	"github.com/pingcap/tidb/keyspace"
 	tidbkv "github.com/pingcap/tidb/kv"
 	"github.com/pingcap/tidb/meta/autoid"
 	"github.com/pingcap/tidb/parser/mysql"
@@ -379,21 +379,21 @@ func (ti *TableImporter) PopulateChunks(ctx context.Context) (map[int32]*checkpo
 		if err != nil {
 			return nil, errors.Trace(err)
 		}
-		etcdCli, err := clientv3.New(clientv3.Config{
+		codec := ti.kvStore.GetCodec()
+		etcdCli, err := etcd.NewCodecClient(clientv3.Config{
 			Endpoints:        []string{tidbCfg.Path},
 			AutoSyncInterval: 30 * time.Second,
 			TLS:              tlsConfig,
-		})
+		}, codec)
 		if err != nil {
 			return nil, errors.Trace(err)
 		}
-		etcd.SetEtcdCliByNamespace(etcdCli, keyspace.MakeKeyspaceEtcdNamespace(ti.kvStore.GetCodec()))
 		defer func() {
 			if err := etcdCli.Close(); err != nil {
 				ti.logger.Error("close etcd client error", zap.Error(err))
 			}
 		}()
-		autoidCli := autoid.NewClientDiscover(etcdCli)
+		autoidCli := autoid.NewClientDiscover(etcdCli, codec.GetAPIVersion() > kvrpcpb.APIVersion_V1)
 
 		r := &asAutoIDRequirement{ti.kvStore, autoidCli}
 		// todo: the new base should be the max row id of the last Node if we support distributed import.

@@ -399,7 +399,7 @@ func testSetupOriginal(t *testing.T) (context.Context, *clientv3.Client, *integr
 	return context.Background(), cluster.RandClient(), cluster
 }
 
-func TestSetEtcdCliByNamespace(t *testing.T) {
+func TestNamespacedClient(t *testing.T) {
 	integration.BeforeTest(t)
 	ctx, origEtcdCli, etcdMockCluster := testSetupOriginal(t)
 	defer etcdMockCluster.Terminate(t)
@@ -410,7 +410,8 @@ func TestSetEtcdCliByNamespace(t *testing.T) {
 
 	unprefixedKV := origEtcdCli.KV
 	cliNamespace := origEtcdCli
-	SetEtcdCliByNamespace(cliNamespace, namespacePrefix)
+
+	namespacedClient(cliNamespace, namespacePrefix)
 
 	_, err := cliNamespace.Put(ctx, key, obj)
 	require.NoError(t, err)
