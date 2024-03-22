@@ -17,9 +17,17 @@ package casetest
 import (
 	"testing"
 
+	"github.com/pingcap/tidb/parser/model"
 	"github.com/pingcap/tidb/planner/core/internal"
 	"github.com/pingcap/tidb/testkit"
+	"github.com/pingcap/tipb/go-tipb"
+	"github.com/stretchr/testify/require"
 )
+
+func TestVectorIndexProtobufMatch(t *testing.T) {
+	require.EqualValues(t, tipb.VectorDistanceMetric_INNER_PRODUCT.String(), model.DistanceMetricInnerProduct)
+	require.EqualValues(t, tipb.VectorIndexKind_HNSW.String(), model.VectorIndexKindHNSW)
+}
 
 func TestTiFlashANNIndex(t *testing.T) {
 	store, dom := testkit.CreateMockStoreAndDomain(t)

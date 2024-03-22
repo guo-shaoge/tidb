@@ -31,35 +31,29 @@ import (
 	"go.uber.org/zap"
 )
 
-var annIndexFnNameToMetric = map[string]tipb.ANNQueryDistanceMetric{
-	strings.ToLower(ast.VecL1Distance):     tipb.ANNQueryDistanceMetric_L1,
-	strings.ToLower(ast.VecL2Distance):     tipb.ANNQueryDistanceMetric_L2,
-	strings.ToLower(ast.VecCosineDistance): tipb.ANNQueryDistanceMetric_Cosine,
+var annIndexFnNameToMetric = map[string]tipb.VectorDistanceMetric{
+	strings.ToLower(ast.VecL1Distance):     tipb.VectorDistanceMetric_L1,
+	strings.ToLower(ast.VecL2Distance):     tipb.VectorDistanceMetric_L2,
+	strings.ToLower(ast.VecCosineDistance): tipb.VectorDistanceMetric_COSINE,
 
 	// Note: IP is not supported yet. Currently we will throw errors when building IP index.
-	strings.ToLower(ast.VecNegativeInnerProduct): tipb.ANNQueryDistanceMetric_InnerProduct,
+	strings.ToLower(ast.VecNegativeInnerProduct): tipb.VectorDistanceMetric_INNER_PRODUCT,
 }
 
-var annIndexIsAscending = map[tipb.ANNQueryDistanceMetric]bool{
-	tipb.ANNQueryDistanceMetric_L2:           true,
-	tipb.ANNQueryDistanceMetric_Cosine:       true,
-	tipb.ANNQueryDistanceMetric_L1:           true,
-	tipb.ANNQueryDistanceMetric_InnerProduct: false,
+var annIndexIsAscending = map[tipb.VectorDistanceMetric]bool{
+	tipb.VectorDistanceMetric_L2:            true,
+	tipb.VectorDistanceMetric_COSINE:        true,
+	tipb.VectorDistanceMetric_L1:            true,
+	tipb.VectorDistanceMetric_INNER_PRODUCT: false,
 }
 
-func getDistanceMetricProto(m model.DistanceMetric) (tipb.ANNQueryDistanceMetric, error) {
-	switch m {
-	case model.DistanceMetricL1:
-		return tipb.ANNQueryDistanceMetric_L1, nil
-	case model.DistanceMetricL2:
-		return tipb.ANNQueryDistanceMetric_L2, nil
-	case model.DistanceMetricCosine:
-		return tipb.ANNQueryDistanceMetric_Cosine, nil
-	case model.DistanceMetricInnerProduct:
-		return tipb.ANNQueryDistanceMetric_InnerProduct, nil
+func getDistanceMetricProto(m model.DistanceMetric) (tipb.VectorDistanceMetric, error) {
+	ev, ok := tipb.VectorDistanceMetric_value[string(m)]
+	if !ok {
+		return tipb.VectorDistanceMetric_INVALID_DISTANCE_METRIC,
+			errors.Errorf("unknown distance metric '%s'", string(m))
 	}
-	return tipb.ANNQueryDistanceMetric_InvalidMetric,
-		errors.Errorf("unknown distance metric '%s'", string(m))
+	return tipb.VectorDistanceMetric(ev), nil
 }
 
 func isVecDistanceFnUsed(expr expression.Expression) bool {

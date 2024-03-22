@@ -25,6 +25,8 @@ import (
 type DistanceMetric string
 
 const (
+	// Note: tipb.VectorDistanceMetric's enum names must be aligned with these constant values.
+
 	// DistanceMetricL1 is L1 distance.
 	DistanceMetricL1 DistanceMetric = "L1"
 	// DistanceMetricL2 is L2 distance.
@@ -39,6 +41,8 @@ const (
 type VectorIndexKind string
 
 const (
+	// Note: tipb.VectorIndexKind's enum names must be aligned with these constant values.
+
 	// VectorIndexKindHNSW is HNSW index.
 	VectorIndexKindHNSW VectorIndexKind = "HNSW"
 )

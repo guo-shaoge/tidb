@@ -137,15 +137,15 @@ func mockExecutorExecutionSummary(TimeProcessedNs, NumProducedRows, NumIteration
 
 func mockExecutorExecutionSummaryForTiFlash(TimeProcessedNs, NumProducedRows, NumIterations, Concurrency, totalDmfileScannedPacks, totalDmfileScannedRows, totalDmfileSkippedPacks, totalDmfileSkippedRows, totalDmfileRoughSetIndexLoadTimeMs, totalDmfileReadTimeMs, totalCreateSnapshotTimeMs uint64, totalLocalRegionNum uint64, totalRemoteRegionNum uint64, ExecutorID string) *tipb.ExecutorExecutionSummary {
 	tiflashScanContext := tipb.TiFlashScanContext{
-		TotalDmfileScannedPacks:            &totalDmfileScannedPacks,
-		TotalDmfileSkippedPacks:            &totalDmfileSkippedPacks,
-		TotalDmfileScannedRows:             &totalDmfileScannedRows,
-		TotalDmfileSkippedRows:             &totalDmfileSkippedRows,
-		TotalDmfileRoughSetIndexLoadTimeMs: &totalDmfileRoughSetIndexLoadTimeMs,
-		TotalDmfileReadTimeMs:              &totalDmfileReadTimeMs,
-		TotalCreateSnapshotTimeMs:          &totalCreateSnapshotTimeMs,
-		TotalLocalRegionNum:                &totalLocalRegionNum,
-		TotalRemoteRegionNum:               &totalRemoteRegionNum,
+		DmfileScannedPacks:    &totalDmfileScannedPacks,
+		DmfileSkippedPacks:    &totalDmfileSkippedPacks,
+		DmfileDataScannedRows: &totalDmfileScannedRows,
+		DmfileDataSkippedRows: &totalDmfileSkippedRows,
+		TotalDmfileRsLoadMs:   &totalDmfileRoughSetIndexLoadTimeMs,
+		TotalDmfileReadMs:     &totalDmfileReadTimeMs,
+		TotalBuildSnapshotMs:  &totalCreateSnapshotTimeMs,
+		LocalRegions:          &totalLocalRegionNum,
+		RemoteRegions:         &totalRemoteRegionNum,
 	}
 	return &tipb.ExecutorExecutionSummary{TimeProcessedNs: &TimeProcessedNs, NumProducedRows: &NumProducedRows,
 		NumIterations: &NumIterations, Concurrency: &Concurrency, ExecutorId: &ExecutorID, DetailInfo: &tipb.ExecutorExecutionSummary_TiflashScanContext{TiflashScanContext: &tiflashScanContext}, XXX_unrecognized: nil}
