@@ -81,6 +81,7 @@ import (
 	"github.com/pingcap/tidb/util/memory"
 	"github.com/pingcap/tidb/util/memoryusagealarm"
 	"github.com/pingcap/tidb/util/replayer"
+	remotequery "github.com/pingcap/tidb/util/serverless/remote-query"
 	"github.com/pingcap/tidb/util/servermemorylimit"
 	"github.com/pingcap/tidb/util/sqlexec"
 	"github.com/pingcap/tidb/util/syncutil"
@@ -184,6 +185,8 @@ type Domain struct {
 	mdlCheckCh      chan struct{}
 	stopAutoAnalyze atomicutil.Bool
 	resourcePool    *pools.ResourcePool
+
+	remoteQueryServer *remotequery.Server
 }
 
 type mdlCheckTableInfo struct {
@@ -1229,6 +1232,8 @@ func (do *Domain) Init(
 	if err != nil {
 		return err
 	}
+
+	do.remoteQueryServer = remotequery.NewServer()
 
 	return nil
 }
@@ -2822,6 +2827,11 @@ func (do *Domain) StartTTLJobManager() {
 // TTLJobManager returns the ttl job manager on this domain
 func (do *Domain) TTLJobManager() *ttlworker.JobManager {
 	return do.ttlJobManager.Load()
+}
+
+// GetRemoteQueryServer returns the remote query server.
+func (d *Domain) GetRemoteQueryServer() *remotequery.Server {
+	return d.remoteQueryServer
 }
 
 // StopAutoAnalyze stops (*Domain).autoAnalyzeWorker to launch new auto analyze jobs.

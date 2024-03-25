@@ -152,6 +152,8 @@ const (
 	HintSemiJoinRewrite = "semi_join_rewrite"
 	// HintNoDecorrelate indicates a LogicalApply not to be decorrelated.
 	HintNoDecorrelate = "no_decorrelate"
+	// HintUseWorker is a hint to enforce using the background worker.
+	HintUseWorker = "use_worker"
 )
 
 const (

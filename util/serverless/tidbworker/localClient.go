@@ -47,4 +47,8 @@ func (c localClient) RecycleBgTask(ctx context.Context, gTaskID int64) error {
 	return nil
 }
 
+func (c localClient) RegisterRemoteQuery(ctx context.Context, queryID, queryAddr string) error {
+	return nil
+}
+
 var _ workercli.Client = &localClient{}

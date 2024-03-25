@@ -54,6 +54,7 @@ go_library(
         "//util/printer",
         "//util/sem",
         "//util/serverless",
+        "//util/serverless/remote-query",
         "//util/serverless/tidbworker",
         "//util/signal",
         "//util/stmtsummary/v2:stmtsummary",

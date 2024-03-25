@@ -285,6 +285,13 @@ func (s *Server) startHTTPServer() {
 	healthHandler := NewHealthHandler(s.dom, s)
 	router.Handle("/health", healthHandler).Name("Health")
 
+	if s.dom != nil {
+		rqs := s.dom.GetRemoteQueryServer()
+		router.HandleFunc("/remote-query/{query-id}", rqs.HandleGetQuery).Methods("GET")
+		router.HandleFunc("/remote-query/{query-id}", rqs.HandlePostQuery).Methods("POST")
+		router.HandleFunc("/remote-query/{query-id}/ping", rqs.HandlePing).Methods("GET")
+	}
+
 	serverMux := http.NewServeMux()
 	if s.cfg.StandByMode {
 		serverMux.Handle("/tidb-pool/", standby.Handler(s))

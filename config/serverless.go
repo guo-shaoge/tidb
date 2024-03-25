@@ -100,6 +100,8 @@ const (
 	RoleDDLWorker = "ddl"
 	// RoleBatchWorker is the role for batch worker.
 	RoleBatchWorker = "batch"
+	// RoleRemoteQueryWorker is the role for remote query worker.
+	RoleRemoteQueryWorker = "remote-query"
 )
 
 // defaultTiDBWorker creates a new TiDBWorker.
@@ -163,6 +165,11 @@ func (w *TiDBWorker) Valid(c *Config) error {
 	case RoleDDLWorker, RoleBatchWorker:
 		// Skip running GC worker on DDL worker.
 		c.SkipGCWorker = true
+		// Overwrite execID if its set in env.
+		if execID := os.Getenv(EnvVarExecID); execID != "" {
+			w.ExecID = execID
+		}
+	case RoleRemoteQueryWorker:
 		// Overwrite execID if its set in env.
 		if execID := os.Getenv(EnvVarExecID); execID != "" {
 			w.ExecID = execID

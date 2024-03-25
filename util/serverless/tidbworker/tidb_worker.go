@@ -47,6 +47,7 @@ type Manager interface {
 	InitializeGCV2(ctx context.Context) error
 	// AbortGCV2 aborts all the GCV2 tasks in TiDB worker service.
 	AbortGCV2(ctx context.Context) error
+
 	// RegisterGCV2 notifies the manager that a round of gc has been performed at gcLastRunTime,
 	// with logical timestamp ts.
 	RegisterGCV2(ctx context.Context, gcLastRunTime int64, ts uint64) error
@@ -59,4 +60,7 @@ type Manager interface {
 	// RecycleBgTask notifies the manager that a background global task is finished.
 	// Should only be called by worker.
 	RecycleBgTask(ctx context.Context, gTaskID int64, taskKey string) error
+
+	// RegisterRemoteQuery registers a remote query job to TiDB worker service.
+	RegisterRemoteQuery(ctx context.Context, queryID, queryAddr string) error
 }

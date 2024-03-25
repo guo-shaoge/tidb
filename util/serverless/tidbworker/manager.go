@@ -70,7 +70,7 @@ func InitManager(ctx context.Context, keyspaceName string, cfg config.TiDBWorker
 			return
 		}
 		var c workercli.Client
-		c, err = workercli.NewClientWithContext(ctx, keyspaceName, cfg.TidbPool, cfg.RegistryAddr)
+		c, err = workercli.NewClientWithContext(ctx, keyspaceName, cfg.TidbPool, cfg.RegistryAddr, cfg.APIServerAddr)
 		if err != nil {
 			log.Error("[tidb worker] failed to connect to tidb worker service", zap.Error(err))
 			return
@@ -163,4 +163,9 @@ func (m *manager) RecycleBgTask(ctx context.Context, gTaskID int64, taskKey stri
 	log.Info("[tidb-worker] recycle a background task from worker service", zap.Int64("global-task-id", gTaskID))
 	metrics.WorkerTaskCounter.WithLabelValues("", metrics.RecycleWorkerTask, taskKey).Inc()
 	return m.client.RecycleBgTask(ctx, gTaskID)
+}
+
+func (m *manager) RegisterRemoteQuery(ctx context.Context, queryID, queryAddr string) error {
+	log.Info("[tidb-worker] register a remote query to worker service", zap.String("query-id", queryID))
+	return m.client.RegisterRemoteQuery(ctx, queryID, queryAddr)
 }

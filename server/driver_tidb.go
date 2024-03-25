@@ -22,6 +22,7 @@ import (
 	"sync/atomic"
 
 	"github.com/pingcap/errors"
+	"github.com/pingcap/tidb/domain"
 	"github.com/pingcap/tidb/expression"
 	"github.com/pingcap/tidb/extension"
 	"github.com/pingcap/tidb/kv"
@@ -281,6 +282,21 @@ func (tc *TiDBContext) checkSandBoxMode(stmt ast.StmtNode) error {
 	return nil
 }
 
+func isRemoteQueryStmt(stmt ast.StmtNode) bool {
+	if s, ok := stmt.(*ast.SelectStmt); ok {
+		// find if it has USE_WORKER hint
+		if s.SelectStmtOpts == nil {
+			return false
+		}
+		for _, hint := range s.SelectStmtOpts.TableHints {
+			if hint.HintName.L == core.HintUseWorker {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // ExecuteStmt implements QueryCtx interface.
 func (tc *TiDBContext) ExecuteStmt(ctx context.Context, stmt ast.StmtNode) (ResultSet, error) {
 	var rs sqlexec.RecordSet
@@ -290,6 +306,11 @@ func (tc *TiDBContext) ExecuteStmt(ctx context.Context, stmt ast.StmtNode) (Resu
 	}
 	if s, ok := stmt.(*ast.NonTransactionalDMLStmt); ok {
 		rs, err = session.HandleNonTransactionalDML(ctx, s, tc.Session)
+	} else if isRemoteQueryStmt(stmt) {
+		rms := domain.GetDomain(tc.Session).GetRemoteQueryServer()
+		user, db := tc.Session.GetSessionVars().User, tc.Session.GetSessionVars().CurrentDB
+		chunkInitCap, chunkMaxSize := tc.Session.GetSessionVars().InitChunkSize, tc.Session.GetSessionVars().MaxChunkSize
+		rs, err = rms.RegisterSession(ctx, stmt.OriginalText(), db, user, chunkInitCap, chunkMaxSize)
 	} else {
 		rs, err = tc.Session.ExecuteStmt(ctx, stmt)
 	}
