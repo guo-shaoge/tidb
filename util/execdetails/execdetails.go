@@ -594,6 +594,7 @@ func (crs *CopRuntimeStats) RecordOneCopTask(address string, summary *tipb.Execu
 				totalLocalRegionNum:                summary.GetTiflashScanContext().GetLocalRegions(),
 				totalRemoteRegionNum:               summary.GetTiflashScanContext().GetRemoteRegions(),
 
+				totalVectorIdxLoadFromS3:           summary.GetTiflashScanContext().GetTotalVectorIdxLoadFromS3(),
 				totalVectorIdxLoadFromDisk:         summary.GetTiflashScanContext().GetTotalVectorIdxLoadFromDisk(),
 				totalVectorIdxLoadFromCache:        summary.GetTiflashScanContext().GetTotalVectorIdxLoadFromCache(),
 				totalVectorIdxLoadTimeMs:           summary.GetTiflashScanContext().GetTotalVectorIdxLoadTimeMs(),
@@ -737,6 +738,7 @@ type TiFlashScanContext struct {
 	totalLocalRegionNum                uint64
 	totalRemoteRegionNum               uint64
 
+	totalVectorIdxLoadFromS3           uint64
 	totalVectorIdxLoadFromDisk         uint64
 	totalVectorIdxLoadFromCache        uint64
 	totalVectorIdxLoadTimeMs           uint64
@@ -760,6 +762,7 @@ func (context *TiFlashScanContext) Clone() TiFlashScanContext {
 		totalLocalRegionNum:                context.totalLocalRegionNum,
 		totalRemoteRegionNum:               context.totalRemoteRegionNum,
 
+		totalVectorIdxLoadFromS3:           context.totalVectorIdxLoadFromS3,
 		totalVectorIdxLoadFromDisk:         context.totalVectorIdxLoadFromDisk,
 		totalVectorIdxLoadFromCache:        context.totalVectorIdxLoadFromCache,
 		totalVectorIdxLoadTimeMs:           context.totalVectorIdxLoadTimeMs,
@@ -773,9 +776,9 @@ func (context *TiFlashScanContext) Clone() TiFlashScanContext {
 func (context *TiFlashScanContext) String() string {
 	var output []string
 
-	if context.totalVectorIdxLoadFromDisk+context.totalVectorIdxLoadFromCache > 0 {
+	if context.totalVectorIdxLoadFromS3+context.totalVectorIdxLoadFromDisk+context.totalVectorIdxLoadFromCache > 0 {
 		var items []string
-		items = append(items, fmt.Sprintf("load:{total:%dms,from_disk:%d,from_cache:%d}", context.totalVectorIdxLoadTimeMs, context.totalVectorIdxLoadFromDisk, context.totalVectorIdxLoadFromCache))
+		items = append(items, fmt.Sprintf("load:{total:%dms,from_s3:%d,from_disk:%d,from_cache:%d}", context.totalVectorIdxLoadTimeMs, context.totalVectorIdxLoadFromS3, context.totalVectorIdxLoadFromDisk, context.totalVectorIdxLoadFromCache))
 		items = append(items, fmt.Sprintf("search:{total:%dms,visited_nodes:%d,discarded_nodes:%d}", context.totalVectorIdxSearchTimeMs, context.totalVectorIdxSearchVisitedNodes, context.totalVectorIdxSearchDiscardedNodes))
 		items = append(items, fmt.Sprintf("read:{vec_total:%dms,others_total:%dms}", context.totalVectorIdxReadVecTimeMs, context.totalVectorIdxReadOthersTimeMs))
 		output = append(output, "vector_idx:{"+strings.Join(items, ",")+"}")
@@ -809,6 +812,7 @@ func (context *TiFlashScanContext) Merge(other TiFlashScanContext) {
 	context.totalLocalRegionNum += other.totalLocalRegionNum
 	context.totalRemoteRegionNum += other.totalRemoteRegionNum
 
+	context.totalVectorIdxLoadFromS3 += other.totalVectorIdxLoadFromS3
 	context.totalVectorIdxLoadFromDisk += other.totalVectorIdxLoadFromDisk
 	context.totalVectorIdxLoadFromCache += other.totalVectorIdxLoadFromCache
 	context.totalVectorIdxLoadTimeMs += other.totalVectorIdxLoadTimeMs
@@ -824,7 +828,8 @@ func (context *TiFlashScanContext) Empty() bool {
 	res := context.totalDmfileScannedPacks == 0 &&
 		context.totalDmfileSkippedPacks == 0 &&
 		context.totalVectorIdxLoadFromDisk == 0 &&
-		context.totalVectorIdxLoadFromCache == 0
+		context.totalVectorIdxLoadFromCache == 0 &&
+		context.totalVectorIdxLoadFromS3 == 0
 	return res
 }
 
