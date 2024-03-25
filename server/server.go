@@ -560,7 +560,7 @@ func (s *Server) startShutdown() {
 	// before acquiring the s.rwlock and blocking connections.
 	maxWaitTime := time.Duration(s.cfg.GracefulWaitBeforeShutdown) * time.Second
 	if maxWaitTime > 0 {
-		time.Sleep(1 * time.Second) // waiting for some connections handshake to complete.
+		time.Sleep(2 * time.Second) // waiting for some connections handshake to complete.
 		logutil.BgLogger().Info("waiting for stray connections before starting shutdown process", zap.Duration("maxWaitTime", maxWaitTime))
 
 		failpoint.Inject("forceWaitBeforeShutdown", func() {

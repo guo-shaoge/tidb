@@ -1258,7 +1258,7 @@ func TestGracefulShutdown(t *testing.T) {
 	require.Equal(t, 500, resp.StatusCode)
 	require.Nil(t, resp.Body.Close())
 
-	time.Sleep(time.Second * time.Duration(cfg.GracefulWaitBeforeShutdown+1))
+	time.Sleep(time.Second * time.Duration(cfg.GracefulWaitBeforeShutdown+2))
 
 	//nolint:bodyclose
 	_, err = cli.fetchStatus("/status") // status is gone

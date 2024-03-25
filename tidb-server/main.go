@@ -1225,7 +1225,7 @@ func closeDomainAndStorage(storage kv.Storage, dom *domain.Domain) {
 
 // The amount of time we wait for the ongoing txt to finished.
 // We should better provider a dynamic way to set this value.
-var gracefulCloseConnectionsTimeout = 15 * time.Second
+var gracefulCloseConnectionsTimeout = 200 * time.Millisecond
 
 func cleanup(svr *server.Server, storage kv.Storage, dom *domain.Domain, _ bool) {
 	dom.StopAutoAnalyze()
