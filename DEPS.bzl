@@ -4371,8 +4371,8 @@ def go_deps():
         name = "com_github_tidbcloud_aws_shared_provider_pkg_tidbworker_client",
         build_file_proto_mode = "disable",
         importpath = "github.com/tidbcloud/aws-shared-provider/pkg/tidbworker/client",
-        sum = "h1:prxledDbfOsoyaYHJXVDwf6/TefYDLyUBfk7zRmuCyw=",
-        version = "v0.0.0-20240318054133-20e2634ff28b",
+        sum = "h1:AA25YrGBGUZLqt//wNrqkHZBdXv65rUOq9QBWzKq3ZA=",
+        version = "v0.0.0-20240326062428-63d6a8c7c0f6",
     )
     go_repository(
         name = "com_github_tidwall_gjson",
@@ -5940,6 +5940,13 @@ def go_deps():
         version = "v0.1.0",
     )
     go_repository(
+        name = "io_filippo_edwards25519",
+        build_file_proto_mode = "disable",
+        importpath = "filippo.io/edwards25519",
+        sum = "h1:FNf4tywRC1HmFuKW5xopWpigGjJKiJSV0Cqo0cJWDaA=",
+        version = "v1.1.0",
+    )
+    go_repository(
         name = "io_gorm_datatypes",
         build_file_proto_mode = "disable",
         importpath = "gorm.io/datatypes",
@@ -5950,8 +5957,8 @@ def go_deps():
         name = "io_gorm_driver_mysql",
         build_file_proto_mode = "disable",
         importpath = "gorm.io/driver/mysql",
-        sum = "h1:QC2HRskSE75wBuOxe0+iCkyJZ+RqpudsQtqkp+IMuXs=",
-        version = "v1.5.2",
+        sum = "h1:Ld4mkIickM+EliaQZQx3uOJDJHtrd70MxAUqWqlx3Y8=",
+        version = "v1.5.6",
     )
     go_repository(
         name = "io_gorm_driver_sqlite",
@@ -5964,8 +5971,8 @@ def go_deps():
         name = "io_gorm_gorm",
         build_file_proto_mode = "disable",
         importpath = "gorm.io/gorm",
-        sum = "h1:zR9lOiiYf09VNh5Q1gphfyia1JpiClIWG9hQaxB/mls=",
-        version = "v1.25.5",
+        sum = "h1:WAGEZ/aEcznN4D03laj8DKnehe1e9gYQAjW8xyPRdeo=",
+        version = "v1.25.8",
     )
     go_repository(
         name = "io_k8s_api",

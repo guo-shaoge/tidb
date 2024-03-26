@@ -96,7 +96,7 @@ require (
 	github.com/stretchr/testify v1.8.4
 	github.com/tdakkota/asciicheck v0.2.0
 	github.com/tiancaiamao/appdash v0.0.0-20181126055449-889f96f722a2
-	github.com/tidbcloud/aws-shared-provider/pkg/tidbworker/client v0.0.0-20240318054133-20e2634ff28b
+	github.com/tidbcloud/aws-shared-provider/pkg/tidbworker/client v0.0.0-20240326062428-63d6a8c7c0f6
 	github.com/tikv/client-go/v2 v2.0.8-0.20240318071007-fb2a7c7eaa3c
 	github.com/tikv/pd/client v0.0.0-20240318054542-da3b6e381c9b
 	github.com/timakin/bodyclose v0.0.0-20221125081123-e39cf3fc478e
@@ -169,8 +169,8 @@ require (
 	go.opentelemetry.io/proto/otlp v0.9.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20231016165738-49dd2c1f3d0b // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20231106174013-bbf56f31fb17 // indirect
-	gorm.io/driver/mysql v1.5.2 // indirect
-	gorm.io/gorm v1.25.5 // indirect
+	gorm.io/driver/mysql v1.5.6 // indirect
+	gorm.io/gorm v1.25.8 // indirect
 )
 
 require (
