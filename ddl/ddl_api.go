@@ -2406,8 +2406,16 @@ func (d *ddl) CreateTable(ctx sessionctx.Context, s *ast.CreateTableStmt) (err e
 			if tbInfo.TiFlashReplica == nil {
 				replicas, err := infoschema.GetTiFlashStoreCount(ctx)
 				if err == nil && replicas > 0 {
+					// Always try to set to the minimal replica count. We will not set
+					// to the current replica count. For example, when replacing images,
+					// we will observe a higher replica count, and then back to normal
+					// replica count.
+					minReplicas := config.GetGlobalConfig().TiFlashReplicas.MinCount
+					if minReplicas == 0 {
+						minReplicas = 1
+					}
 					tbInfo.TiFlashReplica = &model.TiFlashReplicaInfo{
-						Count:          replicas,
+						Count:          minReplicas,
 						LocationLabels: make([]string, 0),
 						Available:      false,
 					}
