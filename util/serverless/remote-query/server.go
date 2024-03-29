@@ -116,13 +116,12 @@ func (s *Server) RegisterSession(ctx context.Context, query, currentDB string, u
 	session.LastActive.Store(time.Now().Unix())
 
 	logutil.BgLogger().Info("register session", zap.String("queryID", session.QueryID), zap.String("user", user.String()), zap.String("db", currentDB))
-	namespace := os.Getenv("NAMESPACE")
-	podName := os.Getenv("POD_NAME")
-	if namespace == "" || podName == "" {
-		logutil.BgLogger().Info("env NAMESPACE or POD_NAME not set, skip register session")
-		return nil, errors.New("env NAMESPACE or POD_NAME not set")
+	podIP := os.Getenv("POD_IP")
+	if podIP == "" {
+		logutil.BgLogger().Info("env POD_IP not set, skip register session")
+		return nil, errors.New("env POD_IP not set")
 	}
-	url := fmt.Sprintf("http://%s.%s.svc:10080/remote-query/%s", podName, namespace, session.QueryID)
+	url := fmt.Sprintf("http://%s:10080/remote-query/%s", podIP, session.QueryID)
 	err := tidbworker.GlobalTiDBWorkerManager.RegisterRemoteQuery(ctx, session.QueryID, url)
 	if err != nil {
 		logutil.BgLogger().Error("register remote query failed", zap.Error(err))
