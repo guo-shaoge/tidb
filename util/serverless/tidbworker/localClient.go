@@ -31,13 +31,15 @@ func (c localClient) RecycleGC(ctx context.Context, safePoint uint64) error {
 	return nil
 }
 
-func (c localClient) RegisterGCV2(ctx context.Context, gcLastRunTime int64, ts uint64) error {
+func (c localClient) RegisterGCV2(ctx context.Context, gcLastRunTime int64, ts uint64, gcLifeTime int64) error {
 	return nil
 }
 
 func (c localClient) RecycleGCV2(ctx context.Context, safePoint uint64) error {
 	return nil
 }
+
+func (c localClient) UpdateGCLifeTime(ctx context.Context, gcLifeTime int64) error { return nil }
 
 func (c localClient) RegisterBgTask(ctx context.Context, taskType, taskKey string, gTaskID, subTaskID int64, execID string) error {
 	return nil

@@ -17,8 +17,10 @@ package executor
 import (
 	"context"
 	"strings"
+	"time"
 
 	"github.com/pingcap/errors"
+	"github.com/pingcap/tidb/config"
 	"github.com/pingcap/tidb/domain"
 	"github.com/pingcap/tidb/expression"
 	"github.com/pingcap/tidb/parser/ast"
@@ -37,6 +39,7 @@ import (
 	"github.com/pingcap/tidb/util/gcutil"
 	"github.com/pingcap/tidb/util/logutil"
 	"github.com/pingcap/tidb/util/sem"
+	"github.com/pingcap/tidb/util/serverless/tidbworker"
 	"github.com/pingcap/tidb/util/sqlexec"
 	"go.uber.org/zap"
 )
@@ -168,14 +171,29 @@ func (e *SetExecutor) setSysVariable(ctx context.Context, name string, v *expres
 			}
 			return nil
 		})
+		if err != nil {
+			return err
+		}
 		logutil.BgLogger().Info("set global var", zap.Uint64("conn", sessionVars.ConnectionID), zap.String("name", name), zap.String("val", valStr))
 		if name == variable.TiDBServiceScope {
 			dom := domain.GetDomain(e.ctx)
 			serverID := disttaskutil.GenerateSubtaskExecID(ctx, dom.DDL().GetID())
 			_, err = e.ctx.(sqlexec.SQLExecutor).ExecuteInternal(ctx,
 				`replace into mysql.dist_framework_meta values(%?, %?, DEFAULT)`, serverID, valStr)
+			if err != nil {
+				return err
+			}
 		}
-		return err
+		if name == variable.TiDBGCLifetime && tidbworker.IsMaster() && config.GetGlobalConfig().EnableSafePointV2 {
+			gcLifeTime, err := time.ParseDuration(valStr)
+			if err != nil {
+				return err
+			}
+			if err = tidbworker.GlobalTiDBWorkerManager.UpdateGCLifeTime(ctx, int64(gcLifeTime/time.Second)); err != nil {
+				return err
+			}
+		}
+		return nil
 	}
 	// Set session variable
 	valStr, err := e.getVarValue(ctx, v, nil)

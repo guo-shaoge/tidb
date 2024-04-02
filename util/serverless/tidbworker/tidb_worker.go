@@ -50,9 +50,11 @@ type Manager interface {
 
 	// RegisterGCV2 notifies the manager that a round of gc has been performed at gcLastRunTime,
 	// with logical timestamp ts.
-	RegisterGCV2(ctx context.Context, gcLastRunTime int64, ts uint64) error
+	RegisterGCV2(ctx context.Context, gcLastRunTime int64, ts uint64, gcLifeTime int64) error
 	// RecycleGCV2 notifies the manager that all tasks at or before safePoint are finished.
 	RecycleGCV2(ctx context.Context, safePoint uint64) error
+	// UpdateGCLifeTime updates the gc life time.
+	UpdateGCLifeTime(ctx context.Context, gcLifeTime int64) error
 
 	// RegisterBgTask notifies the manager that a background task is registered.
 	// Should only be used by user tidb.

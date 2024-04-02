@@ -916,7 +916,13 @@ func (w *GCWorker) runGCJob(ctx context.Context, safePoint uint64, concurrency i
 		// in order to prevent unnecessary activation of the GCV2 tidb worker.
 		if tidbworker.IsMaster() {
 			gcRunTime := time.Now().Unix()
-			err = tidbworker.GlobalTiDBWorkerManager.RegisterGCV2(ctx, gcRunTime, safePoint)
+			gcLifeTime, err := w.loadDurationWithDefault(gcLifeTimeKey, gcDefaultLifeTime)
+			if err != nil {
+				logutil.Logger(ctx).Error("[tidb worker] failed to load gc life time",
+					zap.Error(err))
+				return errors.Trace(err)
+			}
+			err = tidbworker.GlobalTiDBWorkerManager.RegisterGCV2(ctx, gcRunTime, safePoint, int64(*gcLifeTime/time.Second))
 			if err != nil {
 				logutil.Logger(ctx).Error("[tidb worker] failed to register gc v2 job",
 					zap.Uint64("safe-point", safePoint),

@@ -45,6 +45,8 @@ const (
 	WorkerTypeGCV2 = "gcv2"
 	// WorkerTypeGC is the type of GC background task.
 	WorkerTypeGC = "gc"
+
+	defGCLifeTimeSec = 600
 )
 
 // TaskWorkerType converts the task type in global to the type of TiDB worker.
@@ -103,7 +105,7 @@ func (m *manager) InitializeGCV2(ctx context.Context) error {
 	log.Info("[tidb-worker] initialize GCV2 tasks")
 	metrics.WorkerTaskCounter.WithLabelValues(WorkerTypeGCV2, metrics.InitializeWorkerTasks, "").Inc()
 	// Use 0 as the timestamp to make sure this task can be cleaned by the completion of any other GCV2 task.
-	err := m.RegisterGCV2(ctx, time.Now().Unix(), 0)
+	err := m.RegisterGCV2(ctx, time.Now().Unix(), 0, defGCLifeTimeSec)
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -122,13 +124,14 @@ func (m *manager) RecycleGC(ctx context.Context, safePoint uint64) error {
 	return m.client.RecycleGC(ctx, safePoint)
 }
 
-func (m *manager) RegisterGCV2(ctx context.Context, gcLastRunTime int64, ts uint64) error {
+func (m *manager) RegisterGCV2(ctx context.Context, gcLastRunTime int64, ts uint64, gcLifeTime int64) error {
 	log.Info("[tidb-worker] register a GCV2 task to worker service",
 		zap.Int64("gc-last-run-time", gcLastRunTime),
 		zap.Uint64("ts", ts),
+		zap.Int64("gc-life-time", gcLifeTime),
 	)
 	metrics.WorkerTaskCounter.WithLabelValues(WorkerTypeGCV2, metrics.RegisterWorkerTask, "").Inc()
-	return m.client.RegisterGCV2(ctx, gcLastRunTime, ts)
+	return m.client.RegisterGCV2(ctx, gcLastRunTime, ts, gcLifeTime)
 }
 
 func (m *manager) RecycleGCV2(ctx context.Context, safePoint uint64) error {
@@ -141,6 +144,11 @@ func (m *manager) AbortGCV2(ctx context.Context) error {
 	log.Info("[tidb-worker] abort all GCV2 tasks")
 	metrics.WorkerTaskCounter.WithLabelValues(WorkerTypeGCV2, metrics.AbortWorkerTask, "").Inc()
 	return m.client.RecycleGCV2(ctx, math.MaxUint64)
+}
+
+func (m *manager) UpdateGCLifeTime(ctx context.Context, gcLifeTime int64) error {
+	log.Info("[tidb-worker] update GC life time", zap.Int64("gc-life-time", gcLifeTime))
+	return m.client.UpdateGCLifeTime(ctx, gcLifeTime)
 }
 
 func (m *manager) Role() string {
