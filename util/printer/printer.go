@@ -70,7 +70,7 @@ func GetTiDBInfo() string {
 		"Check Table Before Drop: %v\n"+
 		"Store: %s"+
 		"%s",
-		"v7.1.1-serverless",
+		"v7.1.3-serverless",
 		versioninfo.TiDBEdition,
 		versioninfo.TiDBGitHash,
 		versioninfo.TiDBGitBranch,

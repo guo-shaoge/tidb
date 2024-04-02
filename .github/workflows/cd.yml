@@ -14,7 +14,7 @@ jobs:
     name: Build ARM64 Image
     runs-on: arm64
     env:
-      TIDB_VERSION: v7.1.1-serverless
+      TIDB_VERSION: v7.1.3-serverless
       TIDB_GIT_BRANCH: release-7.1-serverless
     steps:
       - name: Check out Code
@@ -42,7 +42,7 @@ jobs:
     name: Build AMD64 Image
     runs-on: amd64
     env:
-      TIDB_VERSION: v7.1.1-serverless
+      TIDB_VERSION: v7.1.3-serverless
       TIDB_GIT_BRANCH: release-7.1-serverless
     steps:
       - name: Check out Code

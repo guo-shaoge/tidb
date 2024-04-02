@@ -35,7 +35,7 @@ ENV GOPRIVATE=github.com/tidbcloud
 # Overwrite the minimum required tikv version to be compatible with cloud-storage-engine
 ENV MIN_TIKV_VERSION=6.1.0
 ENV REGISTER_METRICS_INIT=false
-ENV TIDB_VERSION=v7.1.1-serverless
+ENV TIDB_VERSION=v7.1.3-serverless
 ENV TIDB_GIT_BRANCH=release-7.1-serverless
 
 RUN --mount=type=cache,target=/go/cache \
