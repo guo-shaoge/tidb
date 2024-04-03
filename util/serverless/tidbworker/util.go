@@ -59,6 +59,16 @@ func IsGCV2Worker() bool {
 	return GlobalTiDBWorkerManager != nil && GlobalTiDBWorkerManager.Role() == config.RoleGCV2Worker
 }
 
+// IsTTLTaskWorker returns whether the current TiDB is a GCV2 worker.
+func IsTTLTaskWorker() bool {
+	return GlobalTiDBWorkerManager != nil && GlobalTiDBWorkerManager.Role() == config.RoleTTLTaskWorker
+}
+
+// IsUseTiDBWorker returns whether the current TiDB use TiDB worker.
+func IsUseTiDBWorker() bool {
+	return GlobalTiDBWorkerManager != nil
+}
+
 // SchedulerNodes generate scheduler nodes according to tidb worker config instead of current
 // cluster topology.
 func SchedulerNodes(workerType string, gTaskID int64) []*infosync.ServerInfo {

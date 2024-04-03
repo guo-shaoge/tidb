@@ -102,6 +102,8 @@ const (
 	RoleBatchWorker = "batch"
 	// RoleRemoteQueryWorker is the role for remote query worker.
 	RoleRemoteQueryWorker = "remote-query"
+	// RoleTTLTaskWorker is the role for batch worker.
+	RoleTTLTaskWorker = "ttl"
 )
 
 // defaultTiDBWorker creates a new TiDBWorker.
@@ -174,6 +176,7 @@ func (w *TiDBWorker) Valid(c *Config) error {
 		if execID := os.Getenv(EnvVarExecID); execID != "" {
 			w.ExecID = execID
 		}
+	case RoleTTLTaskWorker:
 	default:
 		return fmt.Errorf("invalid tidb worker role %s", w.Role)
 	}

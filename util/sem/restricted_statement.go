@@ -128,18 +128,22 @@ func verifyDDL(stmt ast.DDLNode) error {
 		*ast.FlashBackTableStmt:
 		return nil
 	case *ast.CreateTableStmt:
-		for _, option := range s.Options {
-			if option.Tp == ast.TableOptionTTL ||
-				option.Tp == ast.TableOptionTTLEnable ||
-				option.Tp == ast.TableOptionTTLJobInterval {
-				return dbterror.ErrNotSupportedOnServerless.GenWithStackByCause("TTL")
+		if !config.GetGlobalConfig().EnableSetTableTTL {
+			for _, option := range s.Options {
+				if option.Tp == ast.TableOptionTTL ||
+					option.Tp == ast.TableOptionTTLEnable ||
+					option.Tp == ast.TableOptionTTLJobInterval {
+					return dbterror.ErrNotSupportedOnServerless.GenWithStackByCause("TTL")
+				}
 			}
 		}
 		return nil
 	case *ast.AlterTableStmt:
-		for _, spec := range s.Specs {
-			if spec.Tp == ast.AlterTableRemoveTTL {
-				return dbterror.ErrNotSupportedOnServerless.GenWithStackByCause("TTL")
+		if !config.GetGlobalConfig().EnableSetTableTTL {
+			for _, spec := range s.Specs {
+				if spec.Tp == ast.AlterTableRemoveTTL {
+					return dbterror.ErrNotSupportedOnServerless.GenWithStackByCause("TTL")
+				}
 			}
 		}
 		return nil

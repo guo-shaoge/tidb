@@ -65,4 +65,11 @@ type Manager interface {
 
 	// RegisterRemoteQuery registers a remote query job to TiDB worker service.
 	RegisterRemoteQuery(ctx context.Context, queryID, queryAddr string) error
+	// TTL Task interface
+	RegisterTTLTask(ctx context.Context, tableID int64) error
+	// RecycleTTLTask notifies the manager that a ttl global task is finished.
+	// Should only be called by worker.
+	RecycleTTLTask(ctx context.Context, ts uint64) error
+	// DeleteTTLTableInfo notifies the manager that to delete table info when drop table.
+	DeleteTTLTableInfo(ctx context.Context, tableID int64) error
 }

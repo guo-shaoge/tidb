@@ -36,6 +36,36 @@ type manager struct {
 	role   string
 }
 
+func (m *manager) DeleteTTLTableInfo(ctx context.Context, tableID int64) error {
+	metrics.WorkerTaskCounter.WithLabelValues(WorkerTypeTTL, metrics.InitializeWorkerTasks, "").Inc()
+	// Use 0 as the timestamp to make sure this task can be cleaned by the completion of any other GCV2 task.
+	err := m.client.DeleteTTLTableInfo(ctx, tableID)
+	if err != nil {
+		return errors.Trace(err)
+	}
+	return nil
+}
+
+func (m *manager) RegisterTTLTask(ctx context.Context, tableID int64) error {
+	metrics.WorkerTaskCounter.WithLabelValues(WorkerTypeTTL, metrics.InitializeWorkerTasks, "").Inc()
+	// Use 0 as the timestamp to make sure this task can be cleaned by the completion of any other GCV2 task.
+	err := m.client.RegisterTTLTask(ctx, tableID)
+	if err != nil {
+		return errors.Trace(err)
+	}
+	return nil
+}
+
+func (m *manager) RecycleTTLTask(ctx context.Context, ts uint64) error {
+	metrics.WorkerTaskCounter.WithLabelValues(WorkerTypeTTL, metrics.InitializeWorkerTasks, "").Inc()
+	// Use 0 as the timestamp to make sure this task can be cleaned by the completion of any other GCV2 task.
+	err := m.client.RecycleTTLTask(ctx, ts)
+	if err != nil {
+		return errors.Trace(err)
+	}
+	return nil
+}
+
 const (
 	// WorkerTypeDDL is the type of ddl background task.
 	WorkerTypeDDL = "ddl"
@@ -45,6 +75,9 @@ const (
 	WorkerTypeGCV2 = "gcv2"
 	// WorkerTypeGC is the type of GC background task.
 	WorkerTypeGC = "gc"
+
+	// WorkerTypeTTL is the type of TTL background task.
+	WorkerTypeTTL = "ttl"
 
 	defGCLifeTimeSec = 600
 )

@@ -67,6 +67,7 @@ import (
 	"github.com/pingcap/tidb/util/mathutil"
 	"github.com/pingcap/tidb/util/memory"
 	"github.com/pingcap/tidb/util/mock"
+	"github.com/pingcap/tidb/util/serverless/tidbworker"
 	"github.com/pingcap/tidb/util/set"
 	"github.com/pingcap/tidb/util/sqlexec"
 	"github.com/pingcap/tidb/util/stringutil"
@@ -2496,6 +2497,16 @@ func (d *ddl) createTableWithInfoJob(
 		if err := d.assignTableID(tbInfo); err != nil {
 			return nil, errors.Trace(err)
 		}
+		if tidbworker.IsMaster() && tbInfo != nil {
+			ttlInfo := tbInfo.TTLInfo
+			if ttlInfo != nil && ttlInfo.Enable {
+				// tidb worker:Create table update ttl table info
+				err = tidbworker.GlobalTiDBWorkerManager.RegisterTTLTask(context.Background(), tbInfo.ID)
+				if err != nil {
+					return nil, errors.Trace(err)
+				}
+			}
+		}
 
 		if tbInfo.Partition != nil {
 			if err := d.assignPartitionIDs(tbInfo.Partition.Definitions); err != nil {
@@ -3556,6 +3567,24 @@ func (d *ddl) AlterTable(ctx context.Context, sctx sessionctx.Context, stmt *ast
 					if err != nil {
 						return err
 					}
+
+					if tidbworker.IsMaster() {
+						// tidb worker:Alter table will update ttl table info
+						if ttlEnable != nil {
+							if *ttlEnable {
+								err = tidbworker.GlobalTiDBWorkerManager.RegisterTTLTask(ctx, tb.Meta().ID)
+								if err != nil {
+									return err
+								}
+							} else {
+								err = tidbworker.GlobalTiDBWorkerManager.DeleteTTLTableInfo(ctx, tb.Meta().ID)
+								if err != nil {
+									return err
+								}
+							}
+						}
+					}
+
 					err = d.AlterTableTTLInfoOrEnable(sctx, ident, ttlInfo, ttlEnable, ttlJobInterval)
 
 					ttlOptionsHandled = true
@@ -5918,6 +5947,12 @@ func (d *ddl) AlterTableRemoveTTL(ctx sessionctx.Context, ident ast.Ident) error
 			Type:       model.ActionAlterTTLRemove,
 			BinlogInfo: &model.HistoryInfo{},
 		}
+
+		if tidbworker.IsMaster() {
+			// tidb worker:alter table remove ttl
+			tidbworker.GlobalTiDBWorkerManager.DeleteTTLTableInfo(context.Background(), tableID)
+		}
+
 		err = d.DoDDLJob(ctx, job)
 		err = d.callHookOnChanged(job, err)
 		return errors.Trace(err)
@@ -6306,6 +6341,17 @@ func (d *ddl) dropTableObject(
 			continue
 		} else if err != nil {
 			return errors.Trace(err)
+		}
+
+		if tidbworker.IsMaster() && tableInfo != nil {
+			ttlInfo := tableInfo.Meta().TTLInfo
+			if ttlInfo != nil {
+				// tidb worker:Drop table will delete ttl table info
+				err = tidbworker.GlobalTiDBWorkerManager.DeleteTTLTableInfo(context.Background(), tableInfo.Meta().ID)
+				if err != nil {
+					return errors.Trace(err)
+				}
+			}
 		}
 
 		// unlock table after drop

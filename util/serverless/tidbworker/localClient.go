@@ -23,6 +23,18 @@ import (
 type localClient struct {
 }
 
+func (c localClient) DeleteTTLTableInfo(ctx context.Context, tableID int64) error {
+	return nil
+}
+
+func (c localClient) RegisterTTLTask(ctx context.Context, tableID int64) error {
+	return nil
+}
+
+func (c localClient) RecycleTTLTask(ctx context.Context, ts uint64) error {
+	return nil
+}
+
 func (c localClient) RegisterGC(ctx context.Context, ts uint64) error {
 	return nil
 }

@@ -372,6 +372,10 @@ type Config struct {
 	ResolveLocksByKeyspace bool `toml:"resolve-locks-by-keyspace" json:"resolve-locks-by-keyspace"`
 	// GCV1BlackList keyspace in black list will not resolve by gc worker.
 	GCV1BlackList []uint32 `toml:"gc-v1-black-list" json:"gc-v1-black-list"`
+	// EnableRunTTLTask is used to control whether to run ttl task .
+	EnableRunTTLTask bool `toml:"enable-run-ttl-task" json:"enable-run-ttl-task"`
+	// EnableSetTableTTL is used to control whether to create or alter table ttl .
+	EnableSetTableTTL bool `toml:"enable-set-table-ttl" json:"enable-set-table-ttl"`
 	// BootstrapControl is used to control serverless bootstrap procedure.
 	BootstrapControl BootstrapControl `toml:"bootstrap-control" json:"bootstrap-control"`
 	// CSE is the config collection for the cloud storage engine.

@@ -82,6 +82,7 @@ import (
 	"github.com/pingcap/tidb/util/memoryusagealarm"
 	"github.com/pingcap/tidb/util/replayer"
 	remotequery "github.com/pingcap/tidb/util/serverless/remote-query"
+	"github.com/pingcap/tidb/util/serverless/tidbworker"
 	"github.com/pingcap/tidb/util/servermemorylimit"
 	"github.com/pingcap/tidb/util/sqlexec"
 	"github.com/pingcap/tidb/util/syncutil"
@@ -2811,6 +2812,12 @@ func (do *Domain) serverIDKeeper() {
 
 // StartTTLJobManager creates and starts the ttl job manager
 func (do *Domain) StartTTLJobManager() {
+	// If use tidb worker,it must need EnableRunTTLTask=true or the current pod is ttl task worker.
+	// UT don't use tidb worker, it will start ttl job manager.
+	if tidbworker.IsUseTiDBWorker() && (!config.GetGlobalConfig().EnableRunTTLTask || !tidbworker.IsTTLTaskWorker()) {
+		logutil.BgLogger().Info("don't run ttl job manager.")
+		return
+	}
 	do.wg.Run(func() {
 		defer func() {
 			logutil.BgLogger().Info("ttlJobManager exited.")

@@ -72,6 +72,7 @@ go_library(
         "//util/printer",
         "//util/replayer",
         "//util/serverless/remote-query",
+        "//util/serverless/tidbworker",
         "//util/servermemorylimit",
         "//util/sqlexec",
         "//util/syncutil",

@@ -34,6 +34,7 @@ import (
 	"github.com/pingcap/tidb/ttl/metrics"
 	"github.com/pingcap/tidb/ttl/session"
 	"github.com/pingcap/tidb/util/logutil"
+	"github.com/pingcap/tidb/util/serverless/tidbworker"
 	"github.com/pingcap/tidb/util/timeutil"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.uber.org/multierr"
@@ -417,7 +418,15 @@ j:
 		}
 
 		if allFinished {
-			logutil.Logger(m.ctx).Info("job has finished", zap.String("jobID", job.id))
+			logutil.Logger(m.ctx).Info("job has finished", zap.String("jobID", job.id), zap.Uint64("ts", uint64(job.createTime.Unix())))
+
+			if tidbworker.IsTTLTaskWorker() {
+				err = tidbworker.GlobalTiDBWorkerManager.RecycleTTLTask(m.ctx, uint64(job.createTime.Unix()))
+				if err != nil {
+					logutil.Logger(m.ctx).Info("fail to RecycleTTLTask", zap.Error(err))
+				}
+			}
+
 			summary, err := summarizeTaskResult(allTasks)
 			if err != nil {
 				logutil.Logger(m.ctx).Info("fail to summarize job", zap.Error(err))

@@ -30,6 +30,7 @@ go_library(
         "//util",
         "//util/chunk",
         "//util/logutil",
+        "//util/serverless/tidbworker",
         "//util/sqlexec",
         "//util/timeutil",
         "@com_github_google_uuid//:uuid",

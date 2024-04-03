@@ -19,6 +19,7 @@ import (
 	"strings"
 
 	"github.com/pingcap/errors"
+	"github.com/pingcap/tidb/config"
 	"github.com/pingcap/tidb/expression"
 	"github.com/pingcap/tidb/meta"
 	"github.com/pingcap/tidb/parser"
@@ -98,9 +99,12 @@ func onTTLInfoChange(d *ddlCtx, t *meta.Meta, job *model.Job) (ver int64, err er
 }
 
 func checkTTLInfoValid(ctx sessionctx.Context, schema model.CIStr, tblInfo *model.TableInfo) error {
-	// TTL is not supported in strict sem mode.
-	if sem.IsStrictMode() {
-		return dbterror.ErrNotSupportedOnServerless.GenWithStackByCause("TTL")
+
+	if !config.GetGlobalConfig().EnableSetTableTTL {
+		// TTL is not supported in strict sem mode.
+		if sem.IsStrictMode() {
+			return dbterror.ErrNotSupportedOnServerless.GenWithStackByCause("TTL")
+		}
 	}
 
 	if err := checkTTLIntervalExpr(ctx, tblInfo.TTLInfo); err != nil {
