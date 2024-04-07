@@ -152,6 +152,9 @@ const (
 
 	nmEnableOnlyRunUpgrade = "enable-only-run-upgrade"
 	nmExportID             = "export-id"
+	nmClusterCa            = "cluster-ca"
+	nmClusterCert          = "cluster-cert"
+	nmClusterKey           = "cluster-key"
 )
 
 var (
@@ -213,6 +216,11 @@ var (
 	enableOnlyRunUpgrade = flagBoolean(nmEnableOnlyRunUpgrade, false, "only run upgrade and exit")
 
 	exportID = flag.String(nmExportID, "", "export id")
+
+	// mTLS
+	clusterCA   = flag.String(nmClusterCa, "", "cluster ca file path")
+	clusterCert = flag.String(nmClusterCert, "", "cluster cert file path")
+	clusterKey  = flag.String(nmClusterKey, "", "cluster key file path")
 )
 
 func main() {
@@ -944,6 +952,17 @@ func overrideConfig(cfg *config.Config) {
 
 	if actualFlags[nmExportID] {
 		cfg.ExportID = *exportID
+	}
+
+	if actualFlags[nmClusterCa] {
+		if *clusterCA != "" && (*clusterCert == "" || *clusterKey == "") {
+			err = fmt.Errorf("cluster-ca requires both cluster-cert and cluster-key")
+			terror.MustNil(err)
+		}
+
+		cfg.Security.ClusterSSLCA = *clusterCA
+		cfg.Security.ClusterSSLCert = *clusterCert
+		cfg.Security.ClusterSSLKey = *clusterKey
 	}
 }
 
