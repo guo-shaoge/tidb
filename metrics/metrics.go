@@ -93,6 +93,7 @@ func InitMetrics() {
 	InitTTLMetrics()
 	InitDistTaskMetrics()
 	InitTiDBWorkerMetrics()
+	InitVPAMetrics()
 
 	PanicCounter = NewCounterVec(
 		prometheus.CounterOpts{
@@ -268,6 +269,10 @@ func RegisterMetrics() {
 	prometheus.MustRegister(DistTaskSubTaskStartTimeGauge)
 
 	prometheus.MustRegister(WorkerTaskCounter)
+
+	prometheus.MustRegister(VPAReportCounter)
+	prometheus.MustRegister(VPAScaleMemoryCounter)
+	prometheus.MustRegister(VPAMemoryGauge)
 
 	tikvmetrics.InitMetricsWithConstLabels(TiDB, TiKVClient, constLabels)
 	tikvmetrics.RegisterMetrics()

@@ -24,6 +24,7 @@ go_library(
         "tidb_worker.go",
         "topsql.go",
         "ttl.go",
+        "vpa.go",
         "wrapper.go",
     ],
     importpath = "github.com/pingcap/tidb/metrics",

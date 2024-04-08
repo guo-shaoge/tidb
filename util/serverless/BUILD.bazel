@@ -6,6 +6,7 @@ go_library(
     importpath = "github.com/pingcap/tidb/util/serverless",
     visibility = ["//visibility:public"],
     deps = [
+        "//metrics",
         "//util/gctuner",
         "//util/logutil",
         "//util/memory",

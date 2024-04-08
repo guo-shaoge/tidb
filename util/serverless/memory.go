@@ -23,6 +23,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/pingcap/tidb/metrics"
 	"github.com/pingcap/tidb/util/gctuner"
 	"github.com/pingcap/tidb/util/logutil"
 	"github.com/pingcap/tidb/util/memory"
@@ -113,12 +114,16 @@ func (ms *MemoryScaler) report(stat *runtime.MemStats, limit uint64) {
 	res, err := http.Post("http://"+nodeIP+":4040/report", "application/json", bytes.NewReader(data))
 	if err != nil {
 		logutil.BgLogger().Error("report memory usage failed", zap.Error(err))
+		metrics.VPAReportCounter.WithLabelValues("failed").Inc()
 		return
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
 		logutil.BgLogger().Error("report memory usage failed", zap.Int("status", res.StatusCode))
+		metrics.VPAReportCounter.WithLabelValues("failed").Inc()
+		return
 	}
+	metrics.VPAReportCounter.WithLabelValues("ok").Inc()
 }
 
 // ScaleRequest is the request to scale a pod's memory limit.
@@ -138,14 +143,17 @@ func (ms *MemoryScaler) scaleMemory(to uint64) bool {
 	res, err := http.Post("http://"+nodeIP+":4040/scale", "application/json", bytes.NewReader(data))
 	if err != nil {
 		logutil.BgLogger().Error("scale memory failed", zap.Error(err))
+		metrics.VPAScaleMemoryCounter.WithLabelValues("failed").Inc()
 		return false
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
 		logutil.BgLogger().Error("scale memory failed", zap.Int("status", res.StatusCode))
+		metrics.VPAScaleMemoryCounter.WithLabelValues("failed").Inc()
 		return false
 	}
 	logutil.BgLogger().Info("scale memory success", zap.Uint64("limit", to))
+	metrics.VPAScaleMemoryCounter.WithLabelValues("ok").Inc()
 	memory.ServerMemoryLimit.Store(to)
 	gctuner.GlobalMemoryLimitTuner.UpdateMemoryLimit()
 	return true
@@ -167,6 +175,11 @@ func (ms *MemoryScaler) Run() {
 		case <-ticker.C:
 			stats := memory.ForceReadMemStats()
 			limit := memory.ServerMemoryLimit.Load()
+			metrics.VPAMemoryGauge.WithLabelValues("heap_inuse").Set(float64(stats.HeapInuse))
+			metrics.VPAMemoryGauge.WithLabelValues("sys").Set(float64(stats.Sys))
+			metrics.VPAMemoryGauge.WithLabelValues("heap_released").Set(float64(stats.HeapReleased))
+			metrics.VPAMemoryGauge.WithLabelValues("limit").Set(float64(limit))
+
 			if time.Since(lastReport) > time.Second {
 				ms.report(stats, limit)
 				lastReport = time.Now()
@@ -194,6 +207,10 @@ func (ms *MemoryScaler) Run() {
 				ms.scaleMemory(limit)
 			}
 		case <-ms.exitCh:
+			metrics.VPAMemoryGauge.WithLabelValues("heap_inuse").Set(float64(0))
+			metrics.VPAMemoryGauge.WithLabelValues("sys").Set(0)
+			metrics.VPAMemoryGauge.WithLabelValues("heap_released").Set(0)
+			metrics.VPAMemoryGauge.WithLabelValues("limit").Set(0)
 			return
 		}
 	}
