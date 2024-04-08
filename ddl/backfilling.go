@@ -692,7 +692,10 @@ func (dc *ddlCtx) writePhysicalTableRecord(sessPool *sess.Pool, t table.Physical
 	if err := dc.isReorgRunnable(reorgInfo.Job.ID, false); err != nil {
 		return errors.Trace(err)
 	}
-	if startKey == nil && endKey == nil {
+	if len(startKey) == 0 && len(endKey) == 0 {
+		logutil.BgLogger().Info("[ddl] empty table",
+			zap.String("start key", hex.EncodeToString(startKey)),
+			zap.String("end key", hex.EncodeToString(endKey)))
 		return nil
 	}
 

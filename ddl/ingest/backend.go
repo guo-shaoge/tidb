@@ -145,7 +145,8 @@ func (bc *litBackendCtx) Import(indexID int64, unique bool, tbl table.Table) err
 func (bc *litBackendCtx) FinishImport(indexID int64, unique bool, tbl table.Table) error {
 	ei, exist := bc.Load(indexID)
 	if !exist {
-		return dbterror.ErrIngestFailed.FastGenByArgs("ingest engine not found")
+		logutil.BgLogger().Warn("ingest engine not found", zap.Int64("indexID", indexID))
+		return nil
 	}
 
 	err := ei.ImportAndClean()
