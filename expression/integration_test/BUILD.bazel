@@ -30,6 +30,7 @@ go_test(
         "//types",
         "//util/codec",
         "//util/collate",
+        "//util/plancodec",
         "//util/sem",
         "//util/sqlexec",
         "//util/timeutil",

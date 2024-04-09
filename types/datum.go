@@ -2075,6 +2075,14 @@ func (d *Datum) StringForExplain() string {
 	switch d.Kind() {
 	case KindVectorFloat32:
 		return d.GetVectorFloat32().StringForExplain()
+	case KindString, KindBytes:
+		{
+			str := d.GetString()
+			if len(str) > 64 {
+				str = fmt.Sprintf("%s(len:%d)", str[:64], len(str))
+			}
+			return str
+		}
 	default:
 		return fmt.Sprintf("%v", d.GetValue())
 	}
