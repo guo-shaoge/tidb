@@ -18,8 +18,10 @@ import (
 	"testing"
 
 	"github.com/pingcap/tidb/parser/model"
+	"github.com/pingcap/tidb/planner/core"
 	"github.com/pingcap/tidb/planner/core/internal"
 	"github.com/pingcap/tidb/testkit"
+	"github.com/pingcap/tidb/util/plancodec"
 	"github.com/pingcap/tipb/go-tipb"
 	"github.com/stretchr/testify/require"
 )
@@ -98,4 +100,77 @@ func TestTiFlashANNIndexForPartition(t *testing.T) {
 	suiteData := GetANNIndexSuiteData()
 	suiteData.LoadTestCases(t, &input, &output)
 	testWithData(t, tk, input, output)
+}
+
+func TestANNIndexNormalizedPlan(t *testing.T) {
+	store, dom := testkit.CreateMockStoreAndDomain(t)
+	tk := testkit.NewTestKit(t, store)
+
+	getNormalizedPlan := func() ([]string, string) {
+		info := tk.Session().ShowProcess()
+		require.NotNil(t, info)
+		p, ok := info.Plan.(core.Plan)
+		require.True(t, ok)
+		plan, digest := core.NormalizePlan(p)
+
+		// test the new normalization code
+		flat := core.FlattenPhysicalPlan(p, false)
+		newNormalized, newDigest := core.NormalizeFlatPlan(flat)
+		require.Equal(t, plan, newNormalized)
+		require.Equal(t, digest, newDigest)
+
+		normalizedPlan, err := plancodec.DecodeNormalizedPlan(plan)
+		normalizedPlanRows := getPlanRows(normalizedPlan)
+		require.NoError(t, err)
+
+		return normalizedPlanRows, digest.String()
+	}
+
+	tk.MustExec("set @@global.tidb_enable_vector_type=1")
+	tk.MustExec("use test")
+	tk.MustExec("drop table if exists t")
+	tk.MustExec(`
+		create table t (
+			vec vector(3) comment 'hnsw(distance=cosine)'
+		)
+	`)
+	tk.MustExec(`
+		insert into t values
+			('[1,1,1]'),
+			('[2,2,2]'),
+			('[3,3,3]')
+	`)
+
+	tk.MustExec("analyze table t")
+	internal.SetTiFlashReplica(t, dom, "test", "t")
+
+	tk.MustExec("set @@tidb_isolation_read_engines = 'tiflash'")
+
+	tk.MustExec("explain select * from t order by vec_cosine_distance(vec, '[0,0,0]') limit 1")
+	p1, d1 := getNormalizedPlan()
+	require.Equal(t, []string{
+		" Projection                    root         test.t.vec",
+		" └─TopN                        root         ?",
+		"   └─Projection                root         test.t.vec, vec_cosine_distance(test.t.vec, ?)",
+		"     └─TableReader             root         ",
+		"       └─ExchangeSender        cop[tiflash] ",
+		"         └─Projection          cop[tiflash] test.t.vec",
+		"           └─TopN              cop[tiflash] ?",
+		"             └─Projection      cop[tiflash] test.t.vec, vec_cosine_distance(test.t.vec, ?)",
+		"               └─TableFullScan cop[tiflash] table:t, range:[?,?], annIndex:COSINE(test.t.vec..[?], limit:?), keep order:false",
+	}, p1)
+
+	tk.MustExec("explain select * from t order by vec_cosine_distance(vec, '[1,2,3]') limit 3")
+	_, d2 := getNormalizedPlan()
+
+	tk.MustExec("explain select * from t order by vec_cosine_distance(vec, '[]') limit 3")
+	_, d3 := getNormalizedPlan()
+
+	// Projection differs, so that normalized plan should differ.
+	tk.MustExec("explain select * from t order by vec_cosine_distance('[1,2,3]', vec) limit 3")
+	_, dx1 := getNormalizedPlan()
+
+	require.Equal(t, d1, d2)
+	require.Equal(t, d1, d3)
+	require.NotEqual(t, d1, dx1)
 }

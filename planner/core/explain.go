@@ -233,7 +233,9 @@ func (p *PhysicalTableScan) OperatorInfo(normalized bool) string {
 		buffer.WriteString("(")
 		buffer.WriteString(p.annQuery.GetColumnName())
 		buffer.WriteString("..")
-		{
+		if normalized {
+			buffer.WriteString("[?]")
+		} else {
 			v, _, err := types.ZeroCopyDeserializeVectorFloat32(p.annQuery.RefVecF32)
 			if err != nil {
 				buffer.WriteString("[?]")
@@ -242,7 +244,11 @@ func (p *PhysicalTableScan) OperatorInfo(normalized bool) string {
 			}
 		}
 		buffer.WriteString(", limit:")
-		buffer.WriteString(fmt.Sprint(p.annQuery.TopK))
+		if normalized {
+			buffer.WriteString("?")
+		} else {
+			buffer.WriteString(fmt.Sprint(p.annQuery.TopK))
+		}
 		buffer.WriteString("), ")
 	}
 
