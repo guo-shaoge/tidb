@@ -28,6 +28,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	"github.com/pingcap/tidb/metrics"
 	"github.com/pingcap/tidb/parser/auth"
 	"github.com/pingcap/tidb/util/logutil"
 	"github.com/pingcap/tidb/util/serverless/tidbworker"
@@ -80,16 +81,19 @@ func (s *Server) watchIdleSessions() {
 		select {
 		case <-idleTicker.C:
 			s.Lock()
+			metrics.RemoteQuerySessionGauge.Set(float64(len(s.sessions)))
 			for id, session := range s.sessions {
 				if time.Since(time.Unix(session.LastActive.Load(), 0)) > SessionMaxIdleTime {
 					logutil.BgLogger().Info("close idle session", zap.String("queryID", id))
 					session.RecordSet.Close()
 					delete(s.sessions, id)
+					metrics.RemoteQuerySessionCounter.WithLabelValues("close_idle").Inc()
 				}
 			}
 			s.Unlock()
 		case <-s.closed:
 			logutil.BgLogger().Info("remote query server is closed")
+			metrics.RemoteQuerySessionGauge.Set(0)
 			return
 		}
 	}
@@ -125,9 +129,11 @@ func (s *Server) RegisterSession(ctx context.Context, query, currentDB string, u
 	err := tidbworker.GlobalTiDBWorkerManager.RegisterRemoteQuery(ctx, session.QueryID, url)
 	if err != nil {
 		logutil.BgLogger().Error("register remote query failed", zap.Error(err))
+		metrics.RemoteQuerySessionCounter.WithLabelValues("register_failed").Inc()
 		return nil, err
 	}
 
+	metrics.RemoteQuerySessionCounter.WithLabelValues("register").Inc()
 	s.sessions[session.QueryID] = session
 
 	if !s.watcherStarted { // lazy start idle session watcher
@@ -147,8 +153,10 @@ func (s *Server) HandleGetQuery(w http.ResponseWriter, r *http.Request) {
 	s.RUnlock()
 	if !ok {
 		http.NotFound(w, r)
+		metrics.RemoteQueryServerCounter.WithLabelValues("get_query", "not_found").Inc()
 		return
 	}
+	metrics.RemoteQueryServerCounter.WithLabelValues("get_query", "ok").Inc()
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(session)
 }
@@ -162,6 +170,7 @@ func (s *Server) HandlePostQuery(w http.ResponseWriter, r *http.Request) {
 	s.RUnlock()
 	if !ok {
 		http.NotFound(w, r)
+		metrics.RemoteQueryServerCounter.WithLabelValues("post_chunk", "not_found").Inc()
 		return
 	}
 	session.LastActive.Store(time.Now().Unix())
@@ -170,10 +179,12 @@ func (s *Server) HandlePostQuery(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		logutil.BgLogger().Error("read request body failed", zap.Error(err))
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		metrics.RemoteQueryServerCounter.WithLabelValues("post_chunk", "failed").Inc()
 		return
 	}
 	session.RecordSet.RecvData(data)
 	w.WriteHeader(http.StatusOK)
+	metrics.RemoteQueryServerCounter.WithLabelValues("post_chunk", "ok").Inc()
 }
 
 // HandlePing handles the ping request.
@@ -185,8 +196,10 @@ func (s *Server) HandlePing(w http.ResponseWriter, r *http.Request) {
 	s.RUnlock()
 	if !ok {
 		http.NotFound(w, r)
+		metrics.RemoteQueryServerCounter.WithLabelValues("ping", "not_found").Inc()
 		return
 	}
 	session.LastActive.Store(time.Now().Unix())
 	w.WriteHeader(http.StatusOK)
+	metrics.RemoteQueryServerCounter.WithLabelValues("ping", "ok").Inc()
 }

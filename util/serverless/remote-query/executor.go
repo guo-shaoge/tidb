@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/pingcap/tidb/metrics"
 	"github.com/pingcap/tidb/parser/auth"
 	"github.com/pingcap/tidb/sessionctx/variable"
 	"github.com/pingcap/tidb/types"
@@ -69,19 +70,23 @@ func (e *Executor) loadQuery() error {
 	res, err := http.Get(e.QueryAddr)
 	if err != nil {
 		logutil.BgLogger().Error("failed to load query", zap.Error(err))
+		metrics.RemoteQueryWorkerCounter.WithLabelValues("load_query", "failed").Inc()
 		return err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
 		logutil.BgLogger().Error("failed to load query", zap.String("status", res.Status))
+		metrics.RemoteQueryWorkerCounter.WithLabelValues("load_query", "failed").Inc()
 		return errors.New("failed to load query")
 	}
 	err = json.NewDecoder(res.Body).Decode(e)
 	if err != nil {
 		logutil.BgLogger().Error("failed to decode query", zap.Error(err))
+		metrics.RemoteQueryWorkerCounter.WithLabelValues("load_query", "failed").Inc()
 		return err
 	}
 	logutil.BgLogger().Info("query loaded", zap.String("queryAddr", e.QueryAddr))
+	metrics.RemoteQueryWorkerCounter.WithLabelValues("load_query", "ok").Inc()
 	return nil
 }
 
@@ -102,8 +107,11 @@ func (e *Executor) ping() {
 	res, err := http.Get(e.QueryAddr + "/ping")
 	if err != nil {
 		logutil.BgLogger().Error("failed to ping server", zap.Error(err))
+		metrics.RemoteQueryWorkerCounter.WithLabelValues("ping", "failed").Inc()
+		return
 	}
 	res.Body.Close()
+	metrics.RemoteQueryWorkerCounter.WithLabelValues("load_query", "ok").Inc()
 }
 
 // Close closes the executor.
@@ -113,6 +121,7 @@ func (e *Executor) Close() {
 
 // Execute executes the query.
 func (e *Executor) Execute(ctx context.Context, se SQLSession) error {
+	start := time.Now()
 	se.GetSessionVars().CurrentDB = e.DB
 	se.GetSessionVars().User = &auth.UserIdentity{Username: e.User, Hostname: e.UserHost}
 	// TODO: other variables
@@ -157,6 +166,7 @@ func (e *Executor) Execute(ctx context.Context, se SQLSession) error {
 				logutil.BgLogger().Error("failed to post meta chunk", zap.Error(err))
 				return err
 			}
+			metrics.RemoteQueryWorkerDuration.WithLabelValues("first_chunk").Observe(time.Since(start).Seconds())
 		}
 		var chunkData []byte
 		if chk.NumRows() > 0 {
@@ -171,20 +181,25 @@ func (e *Executor) Execute(ctx context.Context, se SQLSession) error {
 			break
 		}
 	}
+	metrics.RemoteQueryWorkerDuration.WithLabelValues("execute").Observe(time.Since(start).Seconds())
 	return nil
-
 }
 
 func (e *Executor) postData(data []byte) error {
+	start := time.Now()
 	res, err := http.Post(e.QueryAddr, "application/octet-stream", bytes.NewReader(data))
 	if err != nil {
 		logutil.BgLogger().Error("failed to post query result", zap.Error(err))
+		metrics.RemoteQueryWorkerCounter.WithLabelValues("post_chunk", "failed").Inc()
 		return err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
 		logutil.BgLogger().Error("failed to post query result", zap.String("status", res.Status))
+		metrics.RemoteQueryWorkerCounter.WithLabelValues("post_chunk", "failed").Inc()
 		return errors.New("failed to post query result")
 	}
+	metrics.RemoteQueryWorkerCounter.WithLabelValues("post_chunk", "ok").Inc()
+	metrics.RemoteQueryWorkerDuration.WithLabelValues("post_chunk").Observe(time.Since(start).Seconds())
 	return nil
 }

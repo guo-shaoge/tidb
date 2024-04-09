@@ -19,7 +19,9 @@ import (
 	"encoding/json"
 	"errors"
 	"sync/atomic"
+	"time"
 
+	"github.com/pingcap/tidb/metrics"
 	"github.com/pingcap/tidb/parser/ast"
 	"github.com/pingcap/tidb/parser/model"
 	"github.com/pingcap/tidb/types"
@@ -30,6 +32,7 @@ import (
 
 // RecordSet is a record set proxy of remote executor.
 type RecordSet struct {
+	start          time.Time
 	chunkInitCap   int
 	chunkMaxSize   int
 	fieldsRecieved chan struct{}
@@ -44,6 +47,7 @@ type RecordSet struct {
 // NewRecordSet creates a new RecordSet.
 func NewRecordSet(chunkInitCap, chunkMaxSize int) *RecordSet {
 	rs := &RecordSet{
+		start:          time.Now(),
 		chunkInitCap:   chunkInitCap,
 		chunkMaxSize:   chunkMaxSize,
 		fieldsRecieved: make(chan struct{}),
@@ -54,20 +58,33 @@ func NewRecordSet(chunkInitCap, chunkMaxSize int) *RecordSet {
 	return rs
 }
 
-// Fields implements the sqlexec.RecordSet Fields interface.
-func (rs *RecordSet) Fields() []*ast.ResultField {
+func (rs *RecordSet) waitForMeta() bool {
+	start := time.Now()
 	select {
 	case <-rs.quit:
-		return nil
+		logutil.BgLogger().Error("timeout waiting for meta data")
+		metrics.RemoteQueryRecordSetCounter.WithLabelValues("wait_meta", "timeout").Inc()
+		return false
 	case <-rs.fieldsRecieved:
+		metrics.RemoteQueryRecordSetDuration.WithLabelValues("wait_meta").Observe(time.Since(start).Seconds())
+		return true
+	}
+}
+
+// Fields implements the sqlexec.RecordSet Fields interface.
+func (rs *RecordSet) Fields() []*ast.ResultField {
+	if rs.waitForMeta() {
 		return rs.fields
 	}
+	return nil
 }
 
 // NewChunk implements the sqlexec.RecordSet NewChunk interface.
 func (rs *RecordSet) NewChunk(allocator chunk.Allocator) *chunk.Chunk {
-	<-rs.fieldsRecieved
-	return allocator.Alloc(rs.fieldTypes, rs.chunkInitCap, rs.chunkMaxSize)
+	if rs.waitForMeta() {
+		return allocator.Alloc(rs.fieldTypes, rs.chunkInitCap, rs.chunkMaxSize)
+	}
+	return nil
 }
 
 func (rs *RecordSet) recvFieldsMeta() {
@@ -76,12 +93,14 @@ func (rs *RecordSet) recvFieldsMeta() {
 	case data, ok := <-rs.recieveCh:
 		if !ok {
 			logutil.BgLogger().Error("failed to recieve fields meta, recieve channel is closed")
+			metrics.RemoteQueryRecordSetCounter.WithLabelValues("recv_meta", "failed").Inc()
 			return
 		}
 		var fields []*ColumnField
 		err := json.Unmarshal(data, &fields)
 		if err != nil {
 			logutil.BgLogger().Error("failed to unmarshal fields meta", zap.Error(err))
+			metrics.RemoteQueryRecordSetCounter.WithLabelValues("recv_meta", "failed").Inc()
 			return
 		}
 		rs.fields = make([]*ast.ResultField, 0, len(fields))
@@ -98,12 +117,18 @@ func (rs *RecordSet) recvFieldsMeta() {
 		}
 		rs.codec = chunk.NewCodec(rs.fieldTypes)
 		close(rs.fieldsRecieved)
+		metrics.RemoteQueryRecordSetCounter.WithLabelValues("recv_meta", "ok").Inc()
+		metrics.RemoteQueryRecordSetDuration.WithLabelValues("recv_meta").Observe(time.Since(rs.start).Seconds())
 	}
 }
 
 // Next implements the sqlexec.RecordSet Next interface.
 func (rs *RecordSet) Next(ctx context.Context, req *chunk.Chunk) error {
-	<-rs.fieldsRecieved
+	if !rs.waitForMeta() {
+		return errors.New("failed to get fields meta")
+	}
+
+	startWaitChunk := time.Now()
 
 	if req != nil {
 		req.Reset()
@@ -113,14 +138,20 @@ func (rs *RecordSet) Next(ctx context.Context, req *chunk.Chunk) error {
 		return errors.New("record set is closed")
 	case data, ok := <-rs.recieveCh:
 		if !ok {
+			logutil.BgLogger().Error("no more chunks to recieve")
+			metrics.RemoteQueryRecordSetCounter.WithLabelValues("next_chunk", "failed").Inc()
 			return errors.New("no more chunks")
 		}
 		if len(data) > 0 {
 			remains := rs.codec.DecodeToChunk(data, req)
 			if len(remains) > 0 {
+				logutil.BgLogger().Error("failed to decode chunk from recieved data")
+				metrics.RemoteQueryRecordSetCounter.WithLabelValues("next_chunk", "failed").Inc()
 				return errors.New("remains data after decode")
 			}
 		}
+		metrics.RemoteQueryRecordSetCounter.WithLabelValues("next_chunk", "ok").Inc()
+		metrics.RemoteQueryRecordSetDuration.WithLabelValues("wait_chunk").Observe(time.Since(startWaitChunk).Seconds())
 		return nil
 	}
 }
@@ -129,15 +160,18 @@ func (rs *RecordSet) Next(ctx context.Context, req *chunk.Chunk) error {
 func (rs *RecordSet) Close() error {
 	if rs.closed.CompareAndSwap(false, true) {
 		close(rs.quit)
+		metrics.RemoteQueryRecordSetDuration.WithLabelValues("close").Observe(time.Since(rs.start).Seconds())
 	}
 	return nil
 }
 
 // RecvData recieves data from remote executor.
 func (rs *RecordSet) RecvData(data []byte) {
+	start := time.Now()
 	select {
 	case <-rs.quit:
 	case rs.recieveCh <- data:
+		metrics.RemoteQueryRecordSetDuration.WithLabelValues("recv_chunk").Observe(time.Since(start).Seconds())
 	}
 }
 

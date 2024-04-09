@@ -94,6 +94,7 @@ func InitMetrics() {
 	InitDistTaskMetrics()
 	InitTiDBWorkerMetrics()
 	InitVPAMetrics()
+	InitRemoteQueryMetrics()
 
 	PanicCounter = NewCounterVec(
 		prometheus.CounterOpts{
@@ -273,6 +274,14 @@ func RegisterMetrics() {
 	prometheus.MustRegister(VPAReportCounter)
 	prometheus.MustRegister(VPAScaleMemoryCounter)
 	prometheus.MustRegister(VPAMemoryGauge)
+
+	prometheus.MustRegister(RemoteQuerySessionGauge)
+	prometheus.MustRegister(RemoteQuerySessionCounter)
+	prometheus.MustRegister(RemoteQueryServerCounter)
+	prometheus.MustRegister(RemoteQueryRecordSetCounter)
+	prometheus.MustRegister(RemoteQueryRecordSetDuration)
+	prometheus.MustRegister(RemoteQueryWorkerCounter)
+	prometheus.MustRegister(RemoteQueryWorkerDuration)
 
 	tikvmetrics.InitMetricsWithConstLabels(TiDB, TiKVClient, constLabels)
 	tikvmetrics.RegisterMetrics()
