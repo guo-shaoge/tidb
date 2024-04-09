@@ -360,8 +360,12 @@ func main() {
 	err = checkSafePointVersion(keyspaceMeta)
 	mainErrHandler(err)
 
-	err = initTiDBWorkerManager()
-	mainErrHandler(err)
+	if err = initTiDBWorkerManager(); err != nil {
+		logutil.BgLogger().Error("failed to initialize tidb worker manager, fallback to local mode", zap.Error(err))
+		config.UpdateGlobal(func(conf *config.Config) {
+			conf.TiDBWorker.Enable = false
+		})
+	}
 
 	resourcemanager.InstanceResourceManager.Start()
 	storage, dom, err := createStoreAndDomain(keyspaceName)
@@ -378,8 +382,13 @@ func main() {
 	se, err := dom.SysSessionPool().Get()
 	mainErrHandler(err)
 	defer dom.SysSessionPool().Put(se)
-	err = initTiDBWorkerService(se.(sessionctx.Context))
-	mainErrHandler(err)
+	if err = initTiDBWorkerService(se.(sessionctx.Context)); err != nil {
+		logutil.BgLogger().Error("failed to initialize tidb worker service, fallback to local mode", zap.Error(err))
+		tidbworker.GlobalTiDBWorkerManager = nil
+		config.UpdateGlobal(func(conf *config.Config) {
+			conf.TiDBWorker.Enable = false
+		})
+	}
 
 	err = driver.TrySetupGlobalResourceController(context.Background(), dom.ServerID(), storage)
 	if err != nil {
