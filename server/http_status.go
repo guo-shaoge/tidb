@@ -98,6 +98,7 @@ func (s *Server) listenStatusHTTPServer() error {
 	tlsConfig = s.setCNChecker(tlsConfig)
 
 	if tlsConfig != nil {
+		tlsConfig.NextProtos = []string{"h2"}
 		// we need to manage TLS here for cmux to distinguish between HTTP and gRPC.
 		s.statusListener, err = tls.Listen("tcp", s.statusAddr, tlsConfig)
 	} else {
