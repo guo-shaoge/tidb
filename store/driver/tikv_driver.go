@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net/url"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -115,6 +116,13 @@ func TrySetupGlobalResourceController(ctx context.Context, serverID uint64, s kv
 	opts := []rmclient.ResourceControlCreateOption{
 		rmclient.EnableSingleGroupByKeyspace(),
 		rmclient.WithMaxWaitDuration(time.Hour),
+	}
+
+	if strings.Contains(os.Getenv("NAMESPACE"), "vip") { // enlarge wait retry for vip clusters, 2s total wait time.
+		opts = append(opts,
+			rmclient.WithWaitRetryInterval(100*time.Millisecond),
+			rmclient.WithWaitRetryTimes(20),
+		)
 	}
 
 	control, err := rmclient.NewResourceGroupController(ctx, serverID, store.GetPDClient(), &ruConfig, opts...)
