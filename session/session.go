@@ -3552,6 +3552,10 @@ func runInBootstrapSession(store kv.Storage, bootstrap func(Session)) {
 	// For the bootstrap SQLs, the following variables should be compatible with old TiDB versions.
 	s.sessionVars.EnableClusteredIndex = variable.ClusteredIndexDefModeIntOnly
 
+	originalFastReorg := variable.EnableFastReorg.Load()
+	variable.EnableFastReorg.Store(false)
+	defer variable.EnableFastReorg.Store(originalFastReorg)
+
 	s.SetValue(sessionctx.Initing, true)
 	bootstrap(s)
 	finishBootstrap(store)
