@@ -213,7 +213,6 @@ func strictModeReadOnlySysVar(varNameInLower string) bool {
 		variable.TiDBEnableTSOFollowerProxy,
 		variable.TiDBGCConcurrency,
 		variable.TiDBGCEnable,
-		variable.TiDBGCLifetime,
 		variable.TiDBGCMaxWaitTime,
 		variable.TiDBGCRunInterval,
 		variable.TiDBGCScanLockMode,
