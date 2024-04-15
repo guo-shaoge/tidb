@@ -92,28 +92,6 @@ func (e *ExplainExec) Next(ctx context.Context, req *chunk.Chunk) error {
 	return nil
 }
 
-func (e *ExplainExec) handleRUDetails(ctx context.Context, onlyRegister bool) {
-	if e.analyzeExec == nil || !e.executed {
-		return
-	}
-	if coll := e.ctx.GetSessionVars().StmtCtx.RuntimeStatsColl; coll != nil {
-		if onlyRegister {
-			// Register RU stats to make sure the output of explain analyze doesn't change.
-			newRUDetails := clientutil.NewRUDetails()
-			if ruDetailsRaw := ctx.Value(clientutil.RUDetailsCtxKey); ruDetailsRaw == nil {
-				newRUDetails = nil
-			}
-			coll.RegisterStats(e.explain.TargetPlan.ID(), &ruRuntimeStats{newRUDetails})
-			return
-		}
-
-		if ruDetailsRaw := ctx.Value(clientutil.RUDetailsCtxKey); ruDetailsRaw != nil {
-			ruDetails := ruDetailsRaw.(*clientutil.RUDetails)
-			coll.RegisterStats(e.explain.TargetPlan.ID(), &ruRuntimeStats{ruDetails})
-		}
-	}
-}
-
 func (e *ExplainExec) executeAnalyzeExec(ctx context.Context) (err error) {
 	if e.analyzeExec != nil && !e.executed {
 		defer func() {
@@ -125,10 +103,6 @@ func (e *ExplainExec) executeAnalyzeExec(ctx context.Context) (err error) {
 					err = err1
 				}
 			}
-
-			// Handle RU runtime stats after Close() to make sure all ru has been collected.
-			// For example, localMppCoordinator reports last ru consumption when Close().
-			e.handleRUDetails(ctx, false)
 		}()
 		if minHeapInUse, alarmRatio := e.ctx.GetSessionVars().MemoryDebugModeMinHeapInUse, e.ctx.GetSessionVars().MemoryDebugModeAlarmRatio; minHeapInUse != 0 && alarmRatio != 0 {
 			memoryDebugModeCtx, cancel := context.WithCancel(ctx)
@@ -157,7 +131,14 @@ func (e *ExplainExec) executeAnalyzeExec(ctx context.Context) (err error) {
 			}
 		}
 	}
-	e.handleRUDetails(ctx, true)
+	// Register the RU runtime stats to the runtime stats collection after the analyze executor has been executed.
+	if e.analyzeExec != nil && e.executed {
+		ruDetailsRaw := ctx.Value(clientutil.RUDetailsCtxKey)
+		if coll := e.ctx.GetSessionVars().StmtCtx.RuntimeStatsColl; coll != nil && ruDetailsRaw != nil {
+			ruDetails := ruDetailsRaw.(*clientutil.RUDetails).Clone()
+			coll.RegisterStats(e.explain.TargetPlan.ID(), &ruRuntimeStats{ruDetails})
+		}
+	}
 	return err
 }
 
