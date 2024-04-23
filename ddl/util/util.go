@@ -121,6 +121,7 @@ func loadDeleteRangesFromTable(ctx context.Context, sctx sessionctx.Context, tab
 				EndKey:    endKey,
 				Ts:        row.GetUint64(4),
 			})
+			logutil.BgLogger().Debug("load delete ranges from table", zap.Int64("job-id", row.GetInt64(0)))
 		}
 	}
 	return ranges, nil
@@ -146,6 +147,7 @@ func CompleteDeleteRange(sctx sessionctx.Context, dr DelRangeTask, needToRecordD
 	if err != nil {
 		return errors.Trace(err)
 	}
+	logutil.BgLogger().Debug("complete delete range", zap.Int64("job-id", dr.JobID))
 	_, err = sctx.(sqlexec.SQLExecutor).ExecuteInternal(ctx, "COMMIT")
 	return errors.Trace(err)
 }
