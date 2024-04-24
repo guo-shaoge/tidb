@@ -36,6 +36,7 @@ import (
 	sess "github.com/pingcap/tidb/ddl/internal/session"
 	"github.com/pingcap/tidb/disttask/framework/proto"
 	"github.com/pingcap/tidb/disttask/framework/storage"
+	"github.com/pingcap/tidb/expression"
 	"github.com/pingcap/tidb/infoschema"
 	"github.com/pingcap/tidb/kv"
 	"github.com/pingcap/tidb/meta"
@@ -55,6 +56,7 @@ import (
 	"github.com/pingcap/tidb/util"
 	"github.com/pingcap/tidb/util/chunk"
 	"github.com/pingcap/tidb/util/dbterror"
+	"github.com/pingcap/tidb/util/intest"
 	"github.com/pingcap/tidb/util/logutil"
 	decoder "github.com/pingcap/tidb/util/rowDecoder"
 	"github.com/prometheus/client_golang/prometheus"
@@ -67,6 +69,8 @@ import (
 const (
 	// MaxCommentLength is exported for testing.
 	MaxCommentLength = 1024
+	// RowCountThresholdForFastReorg is threshold to use fast reorg.
+	RowCountThresholdForFastReorg = 10000
 )
 
 var (
@@ -631,6 +635,15 @@ func (w *worker) onCreateIndex(d *ddlCtx, t *meta.Meta, job *model.Job, isPK boo
 	switch indexInfo.State {
 	case model.StateNone:
 		// none -> delete only
+		sessCtx, err := w.sessPool.Get()
+		if err != nil {
+			return ver, err
+		}
+		job.StatisticsTableRowCount, job.EstimatedTableDataSize, err = getTableSizeFromStatistics(sessCtx, tblInfo, indexInfo, d)
+		if err != nil {
+			return ver, err
+		}
+		w.sessPool.Put(sessCtx)
 		var reorgTp model.ReorgType
 		reorgTp, err = pickBackfillType(w.ctx, job, indexInfo.Unique, d)
 		if err != nil {
@@ -734,6 +747,10 @@ func pickBackfillType(ctx context.Context, job *model.Job, unique bool, d *ddlCt
 		return model.ReorgTypeTxn, nil
 	}
 	if ingest.LitInitialized {
+		var err error
+		if job.StatisticsTableRowCount < RowCountThresholdForFastReorg {
+			return model.ReorgTypeTxn, nil
+		}
 		available, err := ingest.LitBackCtxMgr.CheckAvailable()
 		if err != nil {
 			return model.ReorgTypeNone, err
@@ -2309,4 +2326,36 @@ func renameIndexes(tblInfo *model.TableInfo, from, to model.CIStr) {
 			idx.Name.O = strings.Replace(idx.Name.O, from.O, to.O, 1)
 		}
 	}
+}
+
+func getTableSizeFromStatistics(sessCtx sessionctx.Context, tblInfo *model.TableInfo, idxInfo *model.IndexInfo, d *ddlCtx) (int64, int64, error) {
+	if intest.InTest {
+		return RowCountThresholdForFastReorg + 1, 0, nil
+	}
+
+	tblStats, err := d.statsHandle.TableStatsFromStorage(tblInfo, tblInfo.ID, false, 0)
+	if tblStats == nil || err != nil {
+		return 0, 0, err
+	}
+	exprCols := make([]*expression.Column, 0, len(idxInfo.Columns))
+	for _, col := range idxInfo.Columns {
+		colInfo := tblInfo.Columns[col.Offset]
+		exprCols = append(exprCols, &expression.Column{
+			RetType:  colInfo.FieldType.Clone(),
+			ID:       colInfo.ID,
+			UniqueID: colInfo.ID,
+			Index:    colInfo.Offset,
+			OrigName: colInfo.Name.L,
+			IsHidden: colInfo.Hidden,
+		})
+	}
+	idxRowSize := tblStats.GetIndexAvgRowSize(sessCtx, exprCols, idxInfo.Unique)
+
+	rowCount, dataSize := tblStats.RealtimeCount, int64(idxRowSize)*tblStats.RealtimeCount
+	logutil.BgLogger().Info("[ddl] get table size for adding index",
+		zap.String("table name", tblInfo.Name.String()),
+		zap.String("index name", idxInfo.Name.String()),
+		zap.Int64("row count", rowCount),
+		zap.Int64("data size", dataSize))
+	return rowCount, dataSize, nil
 }

@@ -92,6 +92,13 @@ func TestPickBackfillType(t *testing.T) {
 	ingest.LitInitialized = true
 	tp, err = pickBackfillType(mockCtx, mockJob, uk, nil)
 	require.NoError(t, err)
+	require.Equal(t, tp, model.ReorgTypeTxn)
+
+	mockJob.ReorgMeta.ReorgTp = model.ReorgTypeNone
+	ingest.LitInitialized = true
+	mockJob.StatisticsTableRowCount = RowCountThresholdForFastReorg + 1
+	tp, err = pickBackfillType(mockCtx, mockJob, uk, nil)
+	require.NoError(t, err)
 	require.Equal(t, tp, model.ReorgTypeLitMerge)
 }
 

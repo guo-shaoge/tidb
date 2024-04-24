@@ -15,12 +15,7 @@
 package ingest
 
 import (
-	"encoding/json"
-	"fmt"
-	"net/http"
-	"net/url"
 	"path/filepath"
-	"strings"
 	"sync/atomic"
 	"time"
 
@@ -28,12 +23,8 @@ import (
 	"github.com/pingcap/tidb/br/pkg/lightning/checkpoints"
 	lightning "github.com/pingcap/tidb/br/pkg/lightning/config"
 	tidb "github.com/pingcap/tidb/config"
-	"github.com/pingcap/tidb/tablecodec"
-	"github.com/pingcap/tidb/util"
-	"github.com/pingcap/tidb/util/codec"
 	"github.com/pingcap/tidb/util/logutil"
 	"github.com/pingcap/tidb/util/size"
-	"github.com/tikv/client-go/v2/tikv"
 	"go.uber.org/zap"
 )
 
@@ -99,59 +90,7 @@ var (
 	compactConcurrency = 4
 )
 
-func generateLocalEngineConfig(cfg *lightning.Config, tblID, indexID, jobID int64, dbName, tbName string, tikvCodec tikv.Codec) (*backend.EngineConfig, error) {
-	var (
-		estimatedDataSize int64
-		err               error
-		resp              *http.Response
-	)
-
-	if cfg.TikvImporter.Backend == lightning.BackendRemote {
-		pdAddrs := strings.Split(cfg.TiDB.PdAddr, ",")
-		type PDRegionStats struct {
-			UserStorageSize int64 `json:"user_storage_size"`
-		}
-
-		startKey, endKey := tablecodec.GetTableHandleKeyRange(tblID)
-		// Encode the range to TiKV format.
-		startKey, endKey = tikvCodec.EncodeRange(startKey[:], endKey[:])
-		startKey, endKey = codec.EncodeBytes(nil, startKey[:]), codec.EncodeBytes(nil, endKey[:])
-		for i := 0; i < maxRetryCount; i++ {
-			pdAddr := pdAddrs[i%len(pdAddrs)]
-
-			path := fmt.Sprintf("/pd/api/v1/stats/region?start_key=%s&end_key=%s",
-				url.QueryEscape(string(startKey)), url.QueryEscape(string(endKey)))
-			resp, err = util.InternalHTTPClient().Get(util.ComposeURL(pdAddr, path))
-			if err != nil {
-				logutil.BgLogger().Warn("get region stats failed", zap.String("pd", pdAddr), zap.Error(err))
-				time.Sleep(retryInterval)
-				continue
-			}
-			defer resp.Body.Close()
-			if resp.StatusCode != http.StatusOK {
-				logutil.BgLogger().Warn("get region stats failed", zap.String("pd", pdAddr), zap.Int("status", resp.StatusCode))
-				err = fmt.Errorf("get region stats failed, status code: %d", resp.StatusCode)
-				time.Sleep(retryInterval)
-				continue
-			}
-
-			// Decode the response body.
-			var stats PDRegionStats
-			err = json.NewDecoder(resp.Body).Decode(&stats)
-			if err != nil {
-				logutil.BgLogger().Warn("decode region stats failed", zap.String("pd", pdAddr), zap.Error(err))
-				time.Sleep(retryInterval)
-				continue
-			}
-
-			estimatedDataSize = stats.UserStorageSize * 1024 * 1024
-			logutil.BgLogger().Info("get table range size for adding index",
-				zap.String("tableName", dbName+"."+tbName), zap.Int64("estimatedDataSize", estimatedDataSize))
-			break
-		}
-	}
-
-	keyspaceID := tikvCodec.GetKeyspaceID()
+func generateLocalEngineConfig(cfg *lightning.Config, tblID, indexID, jobID, dataSize int64, dbName, tbName string, keyspaceID uint32) *backend.EngineConfig {
 	return &backend.EngineConfig{
 		EngineID: int32(keyspaceID),
 		TaskID:   jobID,
@@ -166,8 +105,8 @@ func generateLocalEngineConfig(cfg *lightning.Config, tblID, indexID, jobID int6
 			Name: tbName,
 		},
 		KeepSortDir:       true,
-		EstimatedDataSize: estimatedDataSize,
-	}, err
+		EstimatedDataSize: dataSize,
+	}
 }
 
 // adjustImportMemory adjusts the lightning memory parameters according to the memory root's max limitation.

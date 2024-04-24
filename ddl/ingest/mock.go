@@ -22,7 +22,6 @@ import (
 	"github.com/pingcap/tidb/sessionctx"
 	"github.com/pingcap/tidb/table"
 	"github.com/pingcap/tidb/util/logutil"
-	"github.com/tikv/client-go/v2/tikv"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.uber.org/zap"
 )
@@ -91,7 +90,7 @@ type MockBackendCtx struct {
 }
 
 // Register implements BackendCtx.Register interface.
-func (m *MockBackendCtx) Register(jobID, indexID, tableID int64, _, _ string, tikvCodec tikv.Codec) (Engine, error) {
+func (m *MockBackendCtx) Register(jobID, indexID, tableID, _ int64, _, _ string, _ uint32) (Engine, error) {
 	logutil.BgLogger().Info("mock backend ctx register", zap.Int64("jobID", jobID), zap.Int64("tableID", tableID), zap.Int64("indexID", indexID))
 	return &MockEngineInfo{sessCtx: m.sessCtx, mu: &m.mu}, nil
 }
