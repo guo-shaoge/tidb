@@ -442,6 +442,18 @@ func (m *mppIterator) establishMPPConns(bo *Backoffer, req *kv.MPPDispatchReques
 	// We don't need to process any special error. When we meet errors, just let it fail.
 	rpcResp, err := m.store.GetTiKVClient().SendRequest(bo.GetCtx(), req.Meta.GetAddress(), wrappedReq, readTimeoutUltraLong)
 
+	var stream *tikvrpc.MPPStreamResponse
+	if rpcResp != nil && rpcResp.Resp != nil {
+		stream = rpcResp.Resp.(*tikvrpc.MPPStreamResponse)
+	}
+	if stream == nil {
+		err = errors.New("unexpected rpc resp is MPPStreamResponse")
+	} else {
+		defer func() {
+			stream.Close()
+		}()
+	}
+
 	if err != nil {
 		logutil.BgLogger().Warn("establish mpp connection meet error and cannot retry", zap.String("error", err.Error()), zap.Uint64("timestamp", taskMeta.StartTs), zap.Int64("task", taskMeta.TaskId), zap.Int64("mpp-version", taskMeta.MppVersion))
 		if config.GetGlobalConfig().DisaggregatedTiFlash && !config.GetGlobalConfig().UseAutoScaler {
@@ -455,9 +467,6 @@ func (m *mppIterator) establishMPPConns(bo *Backoffer, req *kv.MPPDispatchReques
 		}
 		return
 	}
-
-	stream := rpcResp.Resp.(*tikvrpc.MPPStreamResponse)
-	defer stream.Close()
 
 	resp := stream.MPPDataPacket
 	if resp == nil {
