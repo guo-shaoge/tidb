@@ -2349,9 +2349,24 @@ func getTableSizeFromStatistics(sessCtx sessionctx.Context, tblInfo *model.Table
 			IsHidden: colInfo.Hidden,
 		})
 	}
+
+	if tblInfo.HasClusteredIndex() {
+		pkIdx := tables.FindPrimaryIndex(tblInfo)
+		for _, col := range pkIdx.Columns {
+			colInfo := tblInfo.Columns[col.Offset]
+			exprCols = append(exprCols, &expression.Column{
+				RetType:  colInfo.FieldType.Clone(),
+				ID:       colInfo.ID,
+				UniqueID: colInfo.ID,
+				Index:    colInfo.Offset,
+				OrigName: colInfo.Name.L,
+				IsHidden: colInfo.Hidden,
+			})
+		}
+	}
 	idxRowSize := tblStats.GetIndexAvgRowSize(sessCtx, exprCols, idxInfo.Unique)
 
-	rowCount, dataSize := tblStats.RealtimeCount, int64(idxRowSize)*tblStats.RealtimeCount
+	rowCount, dataSize := tblStats.RealtimeCount, int64(idxRowSize)*tblStats.RealtimeCount*2
 	logutil.BgLogger().Info("[ddl] get table size for adding index",
 		zap.String("table name", tblInfo.Name.String()),
 		zap.String("index name", idxInfo.Name.String()),
