@@ -142,7 +142,7 @@ func runServerlessUpgrade(store kv.Storage) {
 	originalFastReorg := variable.EnableFastReorg.Load()
 	variable.EnableFastReorg.Store(false)
 	defer variable.EnableFastReorg.Store(originalFastReorg)
-	
+
 	s.SetValue(sessionctx.Initing, true)
 	upgradeServerless(s)
 	s.ClearValue(sessionctx.Initing)

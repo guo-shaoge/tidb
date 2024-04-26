@@ -41,6 +41,7 @@ import (
 	"github.com/pingcap/tidb/br/pkg/storage"
 	"github.com/pingcap/tidb/ddl"
 	"github.com/pingcap/tidb/errno"
+	tikv "github.com/pingcap/tidb/kv"
 	"github.com/pingcap/tidb/parser"
 	"github.com/pingcap/tidb/parser/ast"
 	"github.com/pingcap/tidb/parser/model"
@@ -132,6 +133,7 @@ func NewTargetInfoGetterImpl(
 	cfg *config.Config,
 	targetDB *sql.DB,
 	pdCli pd.Client,
+	storage tikv.Storage,
 ) (*TargetInfoGetterImpl, error) {
 	tls, err := cfg.ToTLS()
 	if err != nil {
@@ -145,7 +147,10 @@ func NewTargetInfoGetterImpl(
 		if pdCli == nil {
 			return nil, common.ErrUnknown.GenWithStack("pd client is required when using local backend")
 		}
-		backendTargetInfoGetter = local.NewTargetInfoGetter(tls, targetDB, pdCli, cfg.TikvImporter.KeyspaceName)
+		backendTargetInfoGetter, err = local.NewTargetInfoGetter(tls, targetDB, pdCli, storage)
+		if err != nil {
+			return nil, common.ErrUnknown.GenWithStack("failed to create local backend target info getter: %v", err)
+		}
 	default:
 		return nil, common.ErrUnknownBackend.GenWithStackByArgs(cfg.TikvImporter.Backend)
 	}

@@ -8,8 +8,7 @@ import (
 	"github.com/pingcap/tidb/br/pkg/lightning/config"
 	"github.com/pingcap/tidb/br/pkg/lightning/mydump"
 	"github.com/pingcap/tidb/br/pkg/lightning/precheck"
-	tikvclient "github.com/tikv/client-go/v2/tikv"
-	pd "github.com/tikv/pd/client"
+	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
 type precheckContextKey string
@@ -23,12 +22,11 @@ func WithPrecheckKey(ctx context.Context, key precheckContextKey, val any) conte
 
 // PrecheckItemBuilder is used to build precheck items
 type PrecheckItemBuilder struct {
-	cfg                *config.Config
-	dbMetas            []*mydump.MDDatabaseMeta
-	preInfoGetter      PreImportInfoGetter
-	checkpointsDB      checkpoints.DB
-	pdLeaderAddrGetter func() string
-	kvCodec            tikvclient.Codec
+	cfg           *config.Config
+	dbMetas       []*mydump.MDDatabaseMeta
+	preInfoGetter PreImportInfoGetter
+	checkpointsDB checkpoints.DB
+	etcdCli       *clientv3.Client
 }
 
 // NewPrecheckItemBuilder creates a new PrecheckItemBuilder
@@ -37,23 +35,14 @@ func NewPrecheckItemBuilder(
 	dbMetas []*mydump.MDDatabaseMeta,
 	preInfoGetter PreImportInfoGetter,
 	checkpointsDB checkpoints.DB,
-	pdCli pd.Client,
-	kvCodec tikvclient.Codec,
+	etcdCli *clientv3.Client,
 ) *PrecheckItemBuilder {
-	leaderAddrGetter := func() string {
-		return cfg.TiDB.PdAddr
-	}
-	// in tests we may not have a pdCli
-	if pdCli != nil {
-		leaderAddrGetter = pdCli.GetLeaderURL
-	}
 	return &PrecheckItemBuilder{
-		cfg:                cfg,
-		dbMetas:            dbMetas,
-		preInfoGetter:      preInfoGetter,
-		checkpointsDB:      checkpointsDB,
-		pdLeaderAddrGetter: leaderAddrGetter,
-		kvCodec:            kvCodec,
+		cfg:           cfg,
+		dbMetas:       dbMetas,
+		preInfoGetter: preInfoGetter,
+		checkpointsDB: checkpointsDB,
+		etcdCli:       etcdCli,
 	}
 }
 
@@ -87,7 +76,7 @@ func (b *PrecheckItemBuilder) BuildPrecheckItem(checkID precheck.CheckItemID) (p
 	case precheck.CheckLocalTempKVDir:
 		return NewLocalTempKVDirCheckItem(b.cfg, b.preInfoGetter, b.dbMetas), nil
 	case precheck.CheckTargetUsingCDCPITR:
-		return NewCDCPITRCheckItem(b.cfg, b.pdLeaderAddrGetter, b.kvCodec), nil
+		return NewCDCPITRCheckItem(b.cfg, b.etcdCli), nil
 	default:
 		return nil, errors.Errorf("unsupported check item: %v", checkID)
 	}

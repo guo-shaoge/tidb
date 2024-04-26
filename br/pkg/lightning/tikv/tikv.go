@@ -17,7 +17,6 @@ package tikv
 import (
 	"context"
 	"fmt"
-	"net/url"
 	"regexp"
 	"strings"
 
@@ -30,6 +29,8 @@ import (
 	"github.com/pingcap/tidb/br/pkg/lightning/log"
 	"github.com/pingcap/tidb/br/pkg/pdutil"
 	"github.com/pingcap/tidb/br/pkg/version"
+	"github.com/pingcap/tidb/kv"
+	"github.com/pingcap/tidb/meta"
 	"github.com/pingcap/tidb/parser/model"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
@@ -205,40 +206,15 @@ func FetchModeFromMetrics(metrics string) (import_sstpb.SwitchMode, error) {
 	}
 }
 
-// FetchRemoteDBModelsFromTLS obtains the remote DB models from the given TLS.
-func FetchRemoteDBModelsFromTLS(ctx context.Context, keyspace string, tls *common.TLS) ([]*model.DBInfo, error) {
-	var (
-		dbs    []*model.DBInfo
-		params *url.Values
-	)
-	if keyspace != "" {
-		params = &url.Values{}
-		params.Add("keyspace", keyspace)
-	}
-	err := tls.GetJSON(ctx, "/schema", params, &dbs)
+// FetchRemoteDBModels obtains the remote DB models from the given TLS.
+func FetchRemoteDBModels(ctx context.Context, storage kv.Storage) ([]*model.DBInfo, error) {
+	curVer, err := storage.CurrentVersion(kv.GlobalTxnScope)
 	if err != nil {
-		err = checkGetJSONError(err)
-		return nil, errors.Annotatef(err, "cannot read db schemas from remote")
+		return nil, errors.Trace(err)
 	}
-	return dbs, nil
-}
-
-// FetchRemoteTableModelsFromTLS obtains the remote table models from the given TLS.
-func FetchRemoteTableModelsFromTLS(ctx context.Context, tls *common.TLS, keyspace, schema string) ([]*model.TableInfo, error) {
-	var (
-		tables []*model.TableInfo
-		params *url.Values
-	)
-	if keyspace != "" {
-		params = &url.Values{}
-		params.Add("keyspace", keyspace)
-	}
-	err := tls.GetJSON(ctx, "/schema/"+schema, params, &tables)
-	if err != nil {
-		err = checkGetJSONError(err)
-		return nil, errors.Annotatef(err, "cannot read schema '%s' from remote", schema)
-	}
-	return tables, nil
+	snap := storage.GetSnapshot(curVer)
+	metaSnap := meta.NewSnapshotMeta(snap)
+	return metaSnap.ListDatabases()
 }
 
 // CheckPDVersion checks the version of PD.

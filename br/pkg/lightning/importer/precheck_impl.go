@@ -792,21 +792,19 @@ func (ci *checkpointCheckItem) checkpointIsValid(ctx context.Context, tableInfo 
 // CDCPITRCheckItem check downstream has enabled CDC or PiTR. It's exposed to let
 // caller override the Instruction message.
 type CDCPITRCheckItem struct {
-	cfg              *config.Config
-	Instruction      string
-	leaderAddrGetter func() string
-	kvCodec          tikvclient.Codec
+	cfg         *config.Config
+	Instruction string
+
 	// used in test
 	etcdCli *clientv3.Client
 }
 
 // NewCDCPITRCheckItem creates a checker to check downstream has enabled CDC or PiTR.
-func NewCDCPITRCheckItem(cfg *config.Config, leaderAddrGetter func() string, kvCodec tikvclient.Codec) precheck.Checker {
+func NewCDCPITRCheckItem(cfg *config.Config, etcdCli *clientv3.Client) precheck.Checker {
 	return &CDCPITRCheckItem{
-		cfg:              cfg,
-		Instruction:      "local backend is not compatible with them. Please switch to tidb backend then try again.",
-		leaderAddrGetter: leaderAddrGetter,
-		kvCodec:          kvCodec,
+		cfg:         cfg,
+		Instruction: "local backend is not compatible with them. Please switch to tidb backend then try again.",
+		etcdCli:     etcdCli,
 	}
 }
 
@@ -852,16 +850,6 @@ func (ci *CDCPITRCheckItem) Check(ctx context.Context) (*precheck.CheckResult, e
 		theResult.Passed = true
 		theResult.Message = "TiDB Lightning is not using local backend, skip this check"
 		return theResult, nil
-	}
-
-	if ci.etcdCli == nil {
-		var err error
-		ci.etcdCli, err = dialEtcdWithCfg(ctx, ci.cfg, ci.leaderAddrGetter(), ci.kvCodec)
-		if err != nil {
-			return nil, errors.Trace(err)
-		}
-		//nolint: errcheck
-		defer ci.etcdCli.Close()
 	}
 
 	errorMsg := make([]string, 0, 2)

@@ -46,6 +46,7 @@ go_library(
         "//infoschema",
         "//keyspace",
         "//kv",
+        "//meta",
         "//parser/model",
         "//parser/mysql",
         "//sessionctx/variable",

@@ -71,12 +71,12 @@ import (
 	"github.com/pingcap/tidb/util/set"
 	"github.com/prometheus/client_golang/prometheus"
 	tikvconfig "github.com/tikv/client-go/v2/config"
-	tikvclient "github.com/tikv/client-go/v2/tikv"
 	pd "github.com/tikv/pd/client"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.uber.org/atomic"
 	"go.uber.org/multierr"
 	"go.uber.org/zap"
+	"google.golang.org/grpc"
 )
 
 // compact levels
@@ -210,6 +210,8 @@ type Controller struct {
 	backend       backend.Backend
 	db            *sql.DB
 	pdCli         pd.Client
+	etcdCli       *clientv3.Client
+	kvStore       tidbkv.Storage
 
 	alterTableLock sync.Mutex
 	sysVars        map[string]string
@@ -243,7 +245,6 @@ type Controller struct {
 
 	keyspaceName string
 	apiContext   pd.APIContext
-	kvCodec      tikvclient.Codec
 }
 
 // LightningStatus provides the finished bytes and total bytes of the current task.
@@ -422,12 +423,53 @@ func NewImportControllerWithPauser(
 		metaBuilder = noopMetaMgrBuilder{}
 	}
 
-	var wrapper backend.TargetInfoGetter
-	if isPhysicalBackend(cfg) {
-		wrapper = local.NewTargetInfoGetter(tls, db, pdCli, p.KeyspaceName)
-	} else {
+	var (
 		wrapper = tidb.NewTargetInfoGetter(db)
+		etcdCfg = clientv3.Config{
+			TLS:              tls.TLSConfig(),
+			Endpoints:        []string{cfg.TiDB.PdAddr},
+			AutoSyncInterval: 30 * time.Second,
+			DialTimeout:      5 * time.Second,
+			DialOptions: []grpc.DialOption{
+				config.DefaultGrpcKeepaliveParams,
+				grpc.WithBlock(),
+				grpc.WithReturnConnectionError(),
+			},
+			Context: ctx,
+		}
+		kvStore tidbkv.Storage
+	)
+	etcdCli, err := etcd.NewCodecClient(etcdCfg, nil)
+	if err != nil {
+		return nil, errors.Trace(err)
 	}
+
+	if isPhysicalBackend(cfg) {
+		// Disable GC because TiDB enables GC already.
+		currentLeaderAddr := pdCli.GetLeaderURL()
+		// remove URL scheme
+		currentLeaderAddr = strings.TrimPrefix(currentLeaderAddr, "http://")
+		currentLeaderAddr = strings.TrimPrefix(currentLeaderAddr, "https://")
+		kvStore, err = driver.TiKVDriver{}.OpenWithOptions(
+			fmt.Sprintf("tikv://%s?disableGC=true&keyspaceName=%s", currentLeaderAddr, p.KeyspaceName),
+			driver.WithSecurity(tls.ToTiKVSecurityConfig()),
+		)
+		if err != nil {
+			return nil, errors.Trace(err)
+		}
+
+		kvCodec := kvStore.GetCodec()
+		etcdCli, err = etcd.NewCodecClient(etcdCfg, kvCodec)
+		if err != nil {
+			return nil, errors.Trace(err)
+		}
+
+		wrapper, err = local.NewTargetInfoGetter(tls, db, pdCli, kvStore)
+		if err != nil {
+			return nil, errors.Trace(err)
+		}
+	}
+
 	ioWorkers := worker.NewPool(ctx, cfg.App.IOConcurrency, "io")
 	targetInfoGetter := &TargetInfoGetterImpl{
 		cfg:     cfg,
@@ -448,14 +490,7 @@ func NewImportControllerWithPauser(
 		return nil, errors.Trace(err)
 	}
 
-	kvCodec, err := keyspace.CodecFromName(ctx, pdCli, p.KeyspaceName)
-	if err != nil {
-		return nil, errors.Trace(err)
-	}
-
-	preCheckBuilder := NewPrecheckItemBuilder(
-		cfg, p.DBMetas, preInfoGetter, cpdb, pdCli, kvCodec,
-	)
+	preCheckBuilder := NewPrecheckItemBuilder(cfg, p.DBMetas, preInfoGetter, cpdb, etcdCli)
 
 	rc := &Controller{
 		taskCtx:       ctx,
@@ -470,6 +505,8 @@ func NewImportControllerWithPauser(
 		engineMgr:     backend.MakeEngineManager(backendObj),
 		backend:       backendObj,
 		pdCli:         pdCli,
+		etcdCli:       etcdCli,
+		kvStore:       kvStore,
 		db:            db,
 		sysVars:       common.DefaultImportantVariables,
 		tls:           tls,
@@ -497,7 +534,6 @@ func NewImportControllerWithPauser(
 
 		keyspaceName: p.KeyspaceName,
 		apiContext:   keyspace.BuildAPIContext(p.KeyspaceName),
-		kvCodec:      kvCodec,
 	}
 
 	return rc, nil
@@ -509,6 +545,12 @@ func (rc *Controller) Close() {
 	_ = rc.db.Close()
 	if rc.pdCli != nil {
 		rc.pdCli.Close()
+	}
+	if rc.etcdCli != nil {
+		_ = rc.etcdCli.Close()
+	}
+	if rc.kvStore != nil {
+		_ = rc.kvStore.Close()
 	}
 }
 
@@ -862,7 +904,7 @@ func (rc *Controller) restoreSchema(ctx context.Context) error {
 	}
 	// For local backend, we need DBInfo.ID to operate the global autoid allocator.
 	if isPhysicalBackend(rc.cfg) {
-		dbs, err := tikv.FetchRemoteDBModelsFromTLS(ctx, rc.keyspaceName, rc.tls)
+		dbs, err := tikv.FetchRemoteDBModels(ctx, rc.kvStore)
 		if err != nil {
 			return errors.Trace(err)
 		}
@@ -1543,8 +1585,6 @@ func (rc *Controller) importTables(ctx context.Context) (finalErr error) {
 	switchBack := false
 	cleanup := false
 	postProgress := func() error { return nil }
-	var kvStore tidbkv.Storage
-	var etcdCli *clientv3.Client
 
 	if isPhysicalBackend(rc.cfg) {
 		var (
@@ -1585,30 +1625,7 @@ func (rc *Controller) importTables(ctx context.Context) (finalErr error) {
 			}
 		}
 
-		// Disable GC because TiDB enables GC already.
-
-		currentLeaderAddr := rc.pdCli.GetLeaderURL()
-		// remove URL scheme
-		currentLeaderAddr = strings.TrimPrefix(currentLeaderAddr, "http://")
-		currentLeaderAddr = strings.TrimPrefix(currentLeaderAddr, "https://")
-		kvStore, err = driver.TiKVDriver{}.OpenWithOptions(
-			fmt.Sprintf("tikv://%s?disableGC=true&keyspaceName=%s", currentLeaderAddr, rc.keyspaceName),
-			driver.WithSecurity(rc.tls.ToTiKVSecurityConfig()),
-		)
-		if err != nil {
-			return errors.Trace(err)
-		}
-
-		etcdCli, err = etcd.NewCodecClient(clientv3.Config{
-			Endpoints:        []string{rc.cfg.TiDB.PdAddr},
-			AutoSyncInterval: 30 * time.Second,
-			TLS:              rc.tls.TLSConfig(),
-		}, rc.kvCodec)
-		if err != nil {
-			return errors.Trace(err)
-		}
-
-		manager, err := NewChecksumManager(ctx, rc, kvStore)
+		manager, err := NewChecksumManager(ctx, rc, rc.kvStore)
 		if err != nil {
 			return errors.Trace(err)
 		}
@@ -1670,16 +1687,6 @@ func (rc *Controller) importTables(ctx context.Context) (finalErr error) {
 				logTask.Warn("failed to clean table task metas, you may need to restore them manually", zap.Error(err))
 			}
 		}
-		if kvStore != nil {
-			if err := kvStore.Close(); err != nil {
-				logTask.Warn("failed to close kv store", zap.Error(err))
-			}
-		}
-		if etcdCli != nil {
-			if err := etcdCli.Close(); err != nil {
-				logTask.Warn("failed to close etcd client", zap.Error(err))
-			}
-		}
 	}()
 
 	taskCh := make(chan task, rc.cfg.App.IndexConcurrency)
@@ -1729,7 +1736,7 @@ func (rc *Controller) importTables(ctx context.Context) (finalErr error) {
 			if err != nil {
 				return errors.Trace(err)
 			}
-			tr, err := NewTableImporter(tableName, tableMeta, dbInfo, tableInfo, cp, igCols.ColumnsMap(), kvStore, etcdCli, log.FromContext(ctx))
+			tr, err := NewTableImporter(tableName, tableMeta, dbInfo, tableInfo, cp, igCols.ColumnsMap(), rc.kvStore, rc.etcdCli, log.FromContext(ctx))
 			if err != nil {
 				return errors.Trace(err)
 			}
@@ -1819,12 +1826,7 @@ func (rc *Controller) importTables(ctx context.Context) (finalErr error) {
 }
 
 func (rc *Controller) registerTaskToPD(ctx context.Context) (undo func(), _ error) {
-	etcdCli, err := dialEtcdWithCfg(ctx, rc.cfg, rc.pdCli.GetLeaderURL(), rc.kvCodec)
-	if err != nil {
-		return nil, errors.Trace(err)
-	}
-
-	register := utils.NewTaskRegister(etcdCli, utils.RegisterLightning, fmt.Sprintf("lightning-%s", uuid.New()))
+	register := utils.NewTaskRegister(rc.etcdCli, utils.RegisterLightning, fmt.Sprintf("lightning-%s", uuid.New()))
 
 	undo = func() {
 		closeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -1832,9 +1834,6 @@ func (rc *Controller) registerTaskToPD(ctx context.Context) (undo func(), _ erro
 
 		if err := register.Close(closeCtx); err != nil {
 			log.L().Warn("failed to unregister task", zap.Error(err))
-		}
-		if err := etcdCli.Close(); err != nil {
-			log.L().Warn("failed to close etcd client", zap.Error(err))
 		}
 	}
 	if err := register.RegisterTask(ctx); err != nil {

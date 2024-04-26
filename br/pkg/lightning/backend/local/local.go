@@ -52,6 +52,8 @@ import (
 	"github.com/pingcap/tidb/br/pkg/version"
 	"github.com/pingcap/tidb/infoschema"
 	"github.com/pingcap/tidb/keyspace"
+	tikvstore "github.com/pingcap/tidb/kv"
+	"github.com/pingcap/tidb/meta"
 	"github.com/pingcap/tidb/parser/model"
 	"github.com/pingcap/tidb/store/pdtypes"
 	"github.com/pingcap/tidb/tablecodec"
@@ -266,26 +268,47 @@ func (*encodingBuilder) MakeEmptyRows() encode.Rows {
 }
 
 type targetInfoGetter struct {
-	tls          *common.TLS
-	targetDB     *sql.DB
-	pdCli        pd.Client
-	keyspaceName string
+	tls      *common.TLS
+	targetDB *sql.DB
+	pdCli    pd.Client
+	storage  tikvstore.Storage
 }
 
 // NewTargetInfoGetter creates an TargetInfoGetter with local backend implementation.
-func NewTargetInfoGetter(tls *common.TLS, db *sql.DB, pdCli pd.Client, keyspaceName string) backend.TargetInfoGetter {
+func NewTargetInfoGetter(
+	tls *common.TLS,
+	db *sql.DB,
+	pdCli pd.Client,
+	storage tikvstore.Storage,
+) (backend.TargetInfoGetter, error) {
 	return &targetInfoGetter{
-		tls:          tls,
-		targetDB:     db,
-		pdCli:        pdCli,
-		keyspaceName: keyspaceName,
-	}
+		tls:      tls,
+		targetDB: db,
+		pdCli:    pdCli,
+		storage:  storage,
+	}, nil
 }
 
 // FetchRemoteTableModels obtains the models of all tables given the schema name.
 // It implements the `TargetInfoGetter` interface.
 func (g *targetInfoGetter) FetchRemoteTableModels(ctx context.Context, schemaName string) ([]*model.TableInfo, error) {
-	return tikv.FetchRemoteTableModelsFromTLS(ctx, g.tls, g.keyspaceName, schemaName)
+	curVer, err := g.storage.CurrentVersion(tikvstore.GlobalTxnScope)
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+	snapshot := g.storage.GetSnapshot(curVer)
+	snapMeta := meta.NewSnapshotMeta(snapshot)
+	dbs, err := snapMeta.ListDatabases()
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+	dbName := model.NewCIStr(schemaName)
+	for _, db := range dbs {
+		if db.Name.L == dbName.L {
+			return snapMeta.ListTables(db.ID)
+		}
+	}
+	return nil, nil
 }
 
 // CheckRequirements performs the check whether the backend satisfies the version requirements.
