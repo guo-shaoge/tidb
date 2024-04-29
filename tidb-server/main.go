@@ -155,6 +155,9 @@ const (
 	nmClusterCa            = "cluster-ca"
 	nmClusterCert          = "cluster-cert"
 	nmClusterKey           = "cluster-key"
+	nmSQLCA                = "sql-ca"
+	nmSQLCert              = "sql-cert"
+	nmSQLKey               = "sql-key"
 )
 
 var (
@@ -221,6 +224,9 @@ var (
 	clusterCA   = flag.String(nmClusterCa, "", "cluster ca file path")
 	clusterCert = flag.String(nmClusterCert, "", "cluster cert file path")
 	clusterKey  = flag.String(nmClusterKey, "", "cluster key file path")
+	sqlCA       = flag.String(nmSQLCA, "", "SQL ca file path")
+	sqlCert     = flag.String(nmSQLCert, "", "SQL cert file path")
+	sqlKey      = flag.String(nmSQLKey, "", "SQL key file path")
 )
 
 func main() {
@@ -972,6 +978,17 @@ func overrideConfig(cfg *config.Config) {
 		cfg.Security.ClusterSSLCA = *clusterCA
 		cfg.Security.ClusterSSLCert = *clusterCert
 		cfg.Security.ClusterSSLKey = *clusterKey
+	}
+
+	if actualFlags[nmSQLCA] {
+		if *sqlCA != "" && (*sqlCert == "" || *clusterKey == "") {
+			err = fmt.Errorf("sql-ca requires both sql-cert and sql-key")
+			terror.MustNil(err)
+		}
+
+		cfg.Security.SSLCA = *sqlCA
+		cfg.Security.SSLCert = *sqlCert
+		cfg.Security.SSLKey = *sqlKey
 	}
 }
 
