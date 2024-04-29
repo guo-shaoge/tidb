@@ -1635,8 +1635,10 @@ func estimateDataSize(tblMeta *mydump.MDTableMeta, tblInfo *checkpoints.TidbTabl
 		// if we can't get table meta or table info, we can't estimate data size.
 		return 0
 	}
-	if isIndexEngine && len(tblInfo.Core.Indices) == 0 {
-		return 0
+	if isIndexEngine {
+		if len(tblInfo.Core.Indices) == 0 || (tblInfo.Core.HasClusteredIndex() && len(tblInfo.Core.Indices) == 1) {
+			return 0
+		}
 	}
 
 	totalSize := int64(0)
