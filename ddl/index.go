@@ -2350,7 +2350,7 @@ func getTableSizeFromStatistics(sessCtx sessionctx.Context, tblInfo *model.Table
 		})
 	}
 
-	if tblInfo.HasClusteredIndex() {
+	if tblInfo.IsCommonHandle {
 		pkIdx := tables.FindPrimaryIndex(tblInfo)
 		for _, col := range pkIdx.Columns {
 			colInfo := tblInfo.Columns[col.Offset]
