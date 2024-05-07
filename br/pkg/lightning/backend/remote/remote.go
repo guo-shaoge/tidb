@@ -351,7 +351,7 @@ func (b *Backend) loadDataInit(ctx context.Context, engine *engine, dataSize int
 		)
 		for i := 0; i < retryCount; i++ {
 			resp, err = client.Post(url, "application/json", nil)
-			if err != nil || retryableHTTPStatusCose(resp.StatusCode) {
+			if err != nil || retryableHTTPStatusCode(resp.StatusCode) {
 				time.Sleep(sleepDuration)
 				continue
 			}
@@ -424,7 +424,7 @@ func (b *Backend) checkLoadDataTask(ctx context.Context, cfg *backend.EngineConf
 		)
 		for i := 0; i < retryCount; i++ {
 			resp, err = client.Get(url)
-			if err != nil || retryableHTTPStatusCose(resp.StatusCode) {
+			if err != nil || retryableHTTPStatusCode(resp.StatusCode) {
 				time.Sleep(sleepDuration)
 				continue
 			}
@@ -1096,7 +1096,8 @@ func genLoadDataTaskID(cfg *backend.EngineConfig) string {
 	return fmt.Sprintf("%d-%d-%d", cfg.TaskID, cfg.TableInfo.ID, cfg.EngineID)
 }
 
-func retryableHTTPStatusCose(statusCode int) bool {
+func retryableHTTPStatusCode(statusCode int) bool {
 	return statusCode == http.StatusServiceUnavailable || // 503
+		statusCode == http.StatusInternalServerError || // 500
 		statusCode == http.StatusRequestTimeout // 408
 }
