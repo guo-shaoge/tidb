@@ -254,7 +254,8 @@ func main() {
 		activateRequest := standby.StartStandby(
 			config.GetGlobalConfig().Status.StatusHost,
 			config.GetGlobalConfig().Status.StatusPort,
-			config.GetGlobalConfig().ActivationTimeout)
+			config.GetGlobalConfig().ActivationTimeout,
+		)
 		config.UpdateGlobal(func(c *config.Config) {
 			c.KeyspaceName = activateRequest.KeyspaceName
 			if activateRequest.AuditLog != nil {
@@ -262,6 +263,9 @@ func main() {
 				c.AuditLog.EncryptKey = activateRequest.AuditLog.EncryptKey
 			}
 			c.ExportID = activateRequest.ExportID
+			if activateRequest.MaxIdleSeconds > 0 {
+				c.MaxIdleSeconds = activateRequest.MaxIdleSeconds
+			}
 		})
 		// replace mainErrHandler to make sure standby handler can exit gracefully.
 		mainErrHandler = func(err error) {

@@ -45,9 +45,10 @@ const (
 
 // ActivateRequest is the request body for activating the tidb server.
 type ActivateRequest struct {
-	KeyspaceName string          `json:"keyspace_name"`
-	AuditLog     *AuditLogConfig `json:"audit_log,omitempty"`
-	ExportID     string          `json:"export_id"`
+	KeyspaceName   string          `json:"keyspace_name"`
+	AuditLog       *AuditLogConfig `json:"audit_log,omitempty"`
+	ExportID       string          `json:"export_id"`
+	MaxIdleSeconds uint            `json:"max_idle_seconds"`
 }
 
 func (r *ActivateRequest) auditLogEnabled() bool {
