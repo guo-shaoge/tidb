@@ -1108,7 +1108,10 @@ func upgrade(s Session) {
 	terror.MustNil(err)
 	if ver >= currentBootstrapVersion {
 		// It is already bootstrapped/upgraded by a higher version TiDB server.
-		logutil.BgLogger().Info("[upgrade] The current version is greater than or equal to the target version,skip upgrade", zap.Int64("ver", ver), zap.Int64("target-version", currentBootstrapVersion))
+		logutil.BgLogger().Info("[upgrade] The current version is greater than or equal to the target version,skip upgrade",
+			zap.Int64("current-version", ver),
+			zap.Int64("target-version", currentBootstrapVersion),
+		)
 		return
 	}
 
@@ -2591,7 +2594,6 @@ func upgradeToVer147(s Session, ver int64) {
 	if ver >= version147 {
 		return
 	}
-	logutil.BgLogger().Info("ywq test reach upgrade")
 	// ignore error when upgrading from v7.4 to higher version.
 	doReentrantDDL(s, CreateDistFrameworkMeta, infoschema.ErrTableExists)
 	doReentrantDDL(s, CreateGlobalTaskHistory, infoschema.ErrTableExists)

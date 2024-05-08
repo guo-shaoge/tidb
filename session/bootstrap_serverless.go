@@ -166,14 +166,17 @@ func upgradeServerless(s Session) {
 	terror.MustNil(err)
 
 	if ver >= currentServerlessVersion {
-		logutil.BgLogger().Info("[upgrade] The current version is greater than or equal to the target version,skip upgrade", zap.Int64("ver", ver), zap.Int64("target-version", currentBootstrapVersion))
+		logutil.BgLogger().Info("[upgrade] The current serverless version is greater than or equal to the target version, skip upgrade",
+			zap.Int64("current-serverless-version", ver),
+			zap.Int64("target-serverless-version", currentServerlessVersion),
+		)
 		return
 	}
 
 	// We suggest not to run upgrade function in gcv2 worker.
 	abortGCV2()
 
-	// Do upgrade works then update bootstrap version.
+	// Do upgrade works then update serverless version.
 	for _, upgradeFunc := range bootstrapServerlessVersion {
 		logutil.BgLogger().Info("[upgrade] before upgrade serverless version", zap.Int64("serverless-version", ver))
 		upgradeFunc(s, ver)

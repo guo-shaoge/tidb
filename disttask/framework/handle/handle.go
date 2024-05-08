@@ -147,7 +147,6 @@ func SubmitAndRunGlobalTask(ctx context.Context, taskKey string, taskType proto.
 		return err
 	}
 	if intest.InTest {
-		logutil.BgLogger().Info("ywq test")
 		return WaitGlobalTaskByKey(ctx, globalTask.Key)
 	}
 	return WaitGlobalTask(ctx, globalTask.ID)
