@@ -582,11 +582,10 @@ func sendRequest(ctx context.Context, httpClient *http.Client, method, url strin
 	for retry > 0 {
 		resp, err = func() (*http.Response, error) {
 			body := bytes.NewReader(data)
-			req, err := http.NewRequest(method, url, body)
+			req, err := http.NewRequestWithContext(ctx, method, url, body)
 			if err != nil {
 				return nil, errors.Errorf("failed to create request %s", url)
 			}
-			req.WithContext(ctx)
 			resp, err := httpClient.Do(req)
 			if err != nil {
 				return nil, errors.Errorf("failed to send request to remote worker, %s", url)
