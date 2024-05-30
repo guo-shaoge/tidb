@@ -445,13 +445,12 @@ func (m *mppIterator) establishMPPConns(bo *Backoffer, req *kv.MPPDispatchReques
 	var stream *tikvrpc.MPPStreamResponse
 	if rpcResp != nil && rpcResp.Resp != nil {
 		stream = rpcResp.Resp.(*tikvrpc.MPPStreamResponse)
+		defer stream.Close()
 	}
 
-	defer func() {
-		if stream != nil {
-			stream.Close()
-		}
-	}()
+	if err == nil && stream == nil {
+		err = errors.New("rpc resp is nil")
+	}
 
 	if err != nil {
 		logutil.BgLogger().Warn("establish mpp connection meet error and cannot retry", zap.String("error", err.Error()), zap.Uint64("timestamp", taskMeta.StartTs), zap.Int64("task", taskMeta.TaskId), zap.Int64("mpp-version", taskMeta.MppVersion))
