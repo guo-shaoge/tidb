@@ -2327,6 +2327,10 @@ func (cc *clientConn) writeChunks(ctx context.Context, rs resultset.ResultSet, b
 		//nolint:forcetypeassert
 		stmtDetail = stmtDetailRaw.(*execdetails.StmtExecDetails)
 	}
+	failpoint.Inject("forceGolangRuntimeGC", func(_ failpoint.Value) {
+		defer runtime.GC()
+		logutil.BgLogger().Info("trigger runtime GC done")
+	})
 	for {
 		failpoint.Inject("fetchNextErr", func(value failpoint.Value) {
 			//nolint:forcetypeassert
