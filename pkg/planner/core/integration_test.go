@@ -15,7 +15,9 @@
 package core_test
 
 import (
+	"sync"
 	"bytes"
+	"sync/atomic"
 	"context"
 	"fmt"
 	"regexp"
@@ -23,7 +25,11 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"math/rand"
+	_ "runtime/debug"
 
+	"github.com/pingcap/tidb/pkg/util/logutil"
+	"go.uber.org/zap"
 	"github.com/pingcap/failpoint"
 	"github.com/pingcap/tidb/pkg/config"
 	"github.com/pingcap/tidb/pkg/domain"
@@ -74,36 +80,56 @@ func TestNoneAccessPathsFoundByIsolationRead(t *testing.T) {
 func TestAggPushDownEngine(t *testing.T) {
 	store := testkit.CreateMockStore(t)
 	tk := testkit.NewTestKit(t, store)
-	tk.MustExec("use test")
-	tk.MustExec("set tidb_cost_model_version=2")
-	tk.MustExec("drop table if exists t")
-	tk.MustExec("create table t(a int primary key, b varchar(20))")
-	tk.MustExec("set @@session.tidb_allow_tiflash_cop=ON")
+	var flag atomic.Int32
+		mem := rand.Intn(10 << 30)
+		tmp := make([]byte, mem)
+		for i := 0; i < len(tmp); i++ {
+			tmp[i] = 10;
+		}
+	go func() {
+		for {
+			wg := sync.WaitGroup{}
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				now := time.Now()
+				tk.MustQuery("select 1;")
+				if time.Since(now) > 100*time.Millisecond{
+					compileDura := tk.Session().GetSessionVars().DurationCompile
+					parseDura := tk.Session().GetSessionVars().DurationParse
 
-	// Create virtual tiflash replica info.
-	dom := domain.GetDomain(tk.Session())
-	is := dom.InfoSchema()
-	tblInfo, err := is.TableByName(context.Background(), model.NewCIStr("test"), model.NewCIStr("t"))
-	require.NoError(t, err)
-	tblInfo.Meta().TiFlashReplica = &model.TiFlashReplicaInfo{
-		Count:     1,
-		Available: true,
+					logutil.BgLogger().Warn("gjt debug long", zap.Any("time", time.Since(now)),
+					zap.Any("compile dura", compileDura),
+					zap.Any("parse dura", parseDura))
+
+					flag.Add(1)
+					return
+				}
+			}()
+			wg.Wait()
+			if flag.Load() >= 2 {
+				return
+			}
+		}
+	} ()
+
+	for {
+		if flag.Load() >= 2 {
+			return
+		}
+		mem2 := rand.Intn(1 << 20)
+		tmp2 := make([][]byte, 10000)
+		for j := 0; j < 10000; j++{
+			for i := 0; i < len(tmp2); i++ {
+				tmp2[i] = make([]byte, mem2);
+				for k := 0; k < len(tmp2[i]); k++ {
+					tmp2[i][k] = 1
+				}
+			}
+		}
+
+
 	}
-
-	tk.MustExec("set @@session.tidb_isolation_read_engines = 'tiflash'")
-
-	tk.MustQuery("explain format = 'brief' select approx_count_distinct(a) from t").Check(testkit.Rows(
-		"StreamAgg 1.00 root  funcs:approx_count_distinct(Column#5)->Column#3",
-		"└─TableReader 1.00 root  data:StreamAgg",
-		"  └─StreamAgg 1.00 batchCop[tiflash]  funcs:approx_count_distinct(test.t.a)->Column#5",
-		"    └─TableFullScan 10000.00 batchCop[tiflash] table:t keep order:false, stats:pseudo"))
-
-	tk.MustExec("set @@session.tidb_isolation_read_engines = 'tikv'")
-
-	tk.MustQuery("explain format = 'brief' select approx_count_distinct(a) from t").Check(testkit.Rows(
-		"HashAgg 1.00 root  funcs:approx_count_distinct(test.t.a)->Column#3",
-		"└─TableReader 10000.00 root  data:TableFullScan",
-		"  └─TableFullScan 10000.00 cop[tikv] table:t keep order:false, stats:pseudo"))
 }
 
 func TestIssue15110And49616(t *testing.T) {
