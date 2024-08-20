@@ -27,7 +27,9 @@ import (
 	"github.com/pingcap/tidb/util/codec"
 	"github.com/pingcap/tidb/util/cteutil"
 	"github.com/pingcap/tidb/util/disk"
+	"github.com/pingcap/tidb/util/logutil"
 	"github.com/pingcap/tidb/util/memory"
+	"go.uber.org/zap"
 )
 
 var _ Executor = &CTEExec{}
@@ -667,6 +669,7 @@ func getCorColHashCode(corCol *expression.CorrelatedColumn) (res []byte) {
 // Return true if cor col has changed.
 func (p *cteProducer) checkAndUpdateCorColHashCode() bool {
 	var changed bool
+	logutil.BgLogger().Warn("colCols", zap.Any("corCols", p.corCols))
 	for i, corCol := range p.corCols {
 		newHashCode := getCorColHashCode(corCol)
 		if !bytes.Equal(newHashCode, p.corColHashCodes[i]) {
