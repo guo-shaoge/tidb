@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/pingcap/tidb/util/logutil"
+	"go.uber.org/zap"
 	"github.com/pingcap/tidb/expression"
 	"github.com/pingcap/tidb/expression/aggregation"
 	"github.com/pingcap/tidb/parser/ast"
@@ -129,16 +131,19 @@ func ExtractCorrelatedCols4PhysicalPlan(p PhysicalPlan) []*expression.Correlated
 //	     |_ outerSide
 //	     |_ innerSide(cor_col_3)
 func ExtractOuterApplyCorrelatedCols(p PhysicalPlan) []*expression.CorrelatedColumn {
-	corCols, _ := extractOuterApplyCorrelatedColsHelper(p, []*expression.Schema{})
+	logutil.BgLogger().Info("gjt debug handling beg")
+	corCols, _ := extractOuterApplyCorrelatedColsHelper(p)
+	logutil.BgLogger().Info("gjt debug handling done")
 	return corCols
 }
 
-func extractOuterApplyCorrelatedColsHelper(p PhysicalPlan, outerSchemas []*expression.Schema) ([]*expression.CorrelatedColumn, []*expression.Schema) {
+func extractOuterApplyCorrelatedColsHelper(p PhysicalPlan) ([]*expression.CorrelatedColumn, []*expression.Schema) {
 	if p == nil {
 		return nil, nil
 	}
-	curCorCols := p.ExtractCorrelatedCols()
-	newCorCols := make([]*expression.CorrelatedColumn, 0, len(curCorCols))
+	logutil.BgLogger().Info("gjt debug handling: ", zap.Any("plan", p.ID()))
+	allApplyCorCols := p.ExtractCorrelatedCols()
+	allApplyOuterSchemas := []*expression.Schema{}
 
 	switch v := p.(type) {
 	case *PhysicalApply:
@@ -148,43 +153,45 @@ func extractOuterApplyCorrelatedColsHelper(p PhysicalPlan, outerSchemas []*expre
 		} else {
 			outerPlan = v.Children()[0]
 		}
-		outerSchemas = append(outerSchemas, outerPlan.Schema())
-		tmpCorCols, tmpOuterSchemas := extractOuterApplyCorrelatedColsHelper(v.Children()[0], outerSchemas)
-		newCorCols = append(newCorCols, tmpCorCols...)
-		outerSchemas = append(outerSchemas, tmpOuterSchemas...)
-		tmpCorCols, tmpOuterSchemas = extractOuterApplyCorrelatedColsHelper(v.Children()[1], outerSchemas)
-		newCorCols = append(newCorCols, tmpCorCols...)
-		outerSchemas = append(outerSchemas, tmpOuterSchemas...)
+		allApplyOuterSchemas = append(allApplyOuterSchemas, outerPlan.Schema())
+		childApplyCorCols, childApplyOuterSchemas := extractOuterApplyCorrelatedColsHelper(v.Children()[0])
+		allApplyCorCols = append(allApplyCorCols, childApplyCorCols...)
+		allApplyOuterSchemas = append(allApplyOuterSchemas, childApplyOuterSchemas...)
+
+		childApplyCorCols, childApplyOuterSchemas = extractOuterApplyCorrelatedColsHelper(v.Children()[0])
+		allApplyCorCols = append(allApplyCorCols, childApplyCorCols...)
+		allApplyOuterSchemas = append(allApplyOuterSchemas, childApplyOuterSchemas...)
 	case *PhysicalCTE:
-		tmpCorCols, tmpOuterSchemas := extractOuterApplyCorrelatedColsHelper(v.SeedPlan, outerSchemas)
-		newCorCols = append(newCorCols, tmpCorCols...)
-		outerSchemas = append(outerSchemas, tmpOuterSchemas...)
-		tmpCorCols, tmpOuterSchemas = extractOuterApplyCorrelatedColsHelper(v.RecurPlan, outerSchemas)
-		newCorCols = append(newCorCols, tmpCorCols...)
-		outerSchemas = append(outerSchemas, tmpOuterSchemas...)
+		childApplyCorCols, childOuterSchemasextractOuterApplyCorrelatedColsHelper(v.SeedPlan)
+		allApplyCorCols = append(allApplyCorCols, childApplyCorCols...)
+		allApplyOuterSchemas = append(allApplyOuterSchemas, childApplyOuterSchemas...)
+
+		childApplyCorCols, childOuterSchemasextractOuterApplyCorrelatedColsHelper(v.RecurPlan)
+		allApplyCorCols = append(allApplyCorCols, childApplyCorCols...)
+		allApplyOuterSchemas = append(allApplyOuterSchemas, childApplyOuterSchemas...)
 	default:
 		for _, child := range p.Children() {
-			tmpCorCols, tmpOuterSchemas := extractOuterApplyCorrelatedColsHelper(child, outerSchemas)
-			newCorCols = append(newCorCols, tmpCorCols...)
-			outerSchemas = append(outerSchemas, tmpOuterSchemas...)
+			childApplyCorCols, childApplyOuterSchemas := extractOuterApplyCorrelatedColsHelper(child)
+			allApplyCorCols = append(allApplyCorCols, childApplyiCorCols...)
+			allApplyOuterSchemas = append(allApplyOuterSchemas, childApplyOuterSchemas...)
 		}
 	}
-	newCorCols = append(newCorCols, curCorCols...)
-	res := make([]*expression.CorrelatedColumn, 0, len(newCorCols))
+
+	resCorCols := make([]*expression.CorrelatedColumn, 0, len(allApplyCorCols))
 	// If a corresponding Apply is found inside this PhysicalPlan, ignore it.
-	for _, corCol := range newCorCols {
+	for _, corCol := range allApplyCorCols {
 		var found bool
-		for _, outerSchema := range outerSchemas {
+		for _, outerSchema := range allApplyOuterSchemas {
 			if outerSchema.ColumnIndex(&corCol.Column) != -1 {
 				found = true
 				break
 			}
 		}
 		if !found {
-			res = append(res, corCol)
+			resCorCols = append(resCorCols, corCol)
 		}
 	}
-	return res, outerSchemas
+	return resCorCols, allApplyOuterSchemas
 }
 
 // decorrelateSolver tries to convert apply plan to join plan.
