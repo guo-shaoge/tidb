@@ -147,14 +147,14 @@ func MemUsedCGroup() (uint64, error) {
 
 // it is for test and init.
 func init() {
-	if cgroup.InContainer() {
-		MemTotal = MemTotalCGroup
-		MemUsed = MemUsedCGroup
-		sysutil.RegisterGetMemoryCapacity(MemTotalCGroup)
-	} else {
+	// if cgroup.InContainer() {
+	// 	MemTotal = MemTotalCGroup
+	// 	MemUsed = MemUsedCGroup
+	// 	sysutil.RegisterGetMemoryCapacity(MemTotalCGroup)
+	// } else {
 		MemTotal = MemTotalNormal
 		MemUsed = MemUsedNormal
-	}
+	// }
 	memLimit = &memInfoCache{
 		mu: &sync.RWMutex{},
 	}
