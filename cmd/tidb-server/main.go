@@ -301,6 +301,7 @@ func main() {
 			config.GetGlobalConfig().TiFlashComputeAutoScalerType,
 			config.GetGlobalConfig().TiFlashComputeAutoScalerAddr,
 			config.GetGlobalConfig().AutoScalerClusterID,
+			config.GetGlobalConfig().AutoScalerClusterID,
 			config.GetGlobalConfig().IsTiFlashComputeFixedPool)
 		terror.MustNil(err)
 	}
