@@ -37,6 +37,9 @@ import (
 	"github.com/pingcap/tidb/pkg/tablecodec"
 	"github.com/pingcap/tidb/pkg/util/tableutil"
 	"github.com/pingcap/tidb/pkg/util/tracing"
+	"github.com/pingcap/tidb/pkg/util/logutil"
+	"go.uber.org/zap"
+	"runtime/debug"
 	"github.com/pingcap/tipb/go-binlog"
 	tikvstore "github.com/tikv/client-go/v2/kv"
 	"github.com/tikv/client-go/v2/oracle"
@@ -291,6 +294,7 @@ func (p *baseTxnContextProvider) ActivateTxn() (kv.Transaction, error) {
 		return nil, err
 	}
 
+	logutil.BgLogger().Info("gjt debug", zap.String("stack", string(debug.Stack())))
 	sessVars := p.sctx.GetSessionVars()
 	sessVars.TxnCtxMu.Lock()
 	sessVars.TxnCtx.StartTS = txn.StartTS()
