@@ -114,6 +114,26 @@ func GetAvgRowSizeDataInDiskByRows(coll *statistics.HistColl, cols []*expression
 	return max(0, size+float64(8*len(cols)))
 }
 
+// TryGetAvgRowSizeDataInDiskByRows computes average row size for given columns.
+func TryGetAvgRowSizeDataInDiskByRows(coll *statistics.HistColl, cols []*expression.Column) (size float64, ok bool) {
+	if coll.Pseudo || coll.ColNum() == 0 || coll.RealtimeCount == 0 {
+		return 0, false
+	} else {
+		for _, col := range cols {
+			colHist := coll.GetCol(col.UniqueID)
+			// Normally this would not happen, it is for compatibility with old version stats which
+			// does not include TotColSize.
+			if colHist == nil || (!colHist.IsHandle && colHist.TotColSize == 0 && (colHist.NullCount != coll.RealtimeCount)) {
+				size += float64(chunk.EstimateTypeWidth(col.GetStaticType()))
+				return 0, false
+			}
+			size += AvgColSizeDataInDiskByRows(colHist, coll.RealtimeCount)
+		}
+	}
+	// Add 8 byte for each column's size record. See `DataInDiskByRows` for details.
+	return max(0, size+float64(8*len(cols))), true
+}
+
 // AvgColSize is the average column size of the histogram. These sizes are derived from function `encode`
 // and `Datum::ConvertTo`, so we need to update them if those 2 functions are changed.
 func AvgColSize(c *statistics.Column, count int64, isKey bool) float64 {
