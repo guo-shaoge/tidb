@@ -29,8 +29,10 @@ import (
 	"github.com/pingcap/tidb/pkg/sessionctx/variable"
 	"github.com/pingcap/tidb/pkg/table/tables"
 	"github.com/pingcap/tidb/pkg/util"
+	"github.com/pingcap/tidb/pkg/util/logutil"
 	"github.com/pingcap/tidb/pkg/util/ranger"
 	"github.com/pingcap/tipb/go-tipb"
+	"go.uber.org/zap"
 )
 
 // ToPB implements PhysicalPlan ToPB interface.
@@ -123,6 +125,7 @@ func (p *PhysicalHashAgg) ToPB(ctx *base.BuildPBContext, storeType kv.StoreType)
 				return nil, err
 			}
 		}
+		logutil.BgLogger().Info("gjt debug agg key size", zap.Any("size", p.groupByColAvgSize))
 	}
 	return &tipb.Executor{
 		Tp:                            tipb.ExecType_TypeAggregation,

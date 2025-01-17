@@ -2345,6 +2345,39 @@ func (p *PhysicalHashAgg) adjust3StagePhaseAgg(partialAgg, finalAgg base.Physica
 	return finalHashAgg, middleHashAgg, partialHashAgg, proj4Partial, nil
 }
 
+func setupGroupByColAvgSize(p base.PhysicalPlan) {
+	// todo how to decide healthy rate?
+	if p == nil || p.StatsInfo().HistColl == nil {
+		return
+	}
+	agg, ok := p.(*PhysicalHashAgg)
+	if !ok {
+		return
+	}
+	items := agg.GroupByItems
+	if len(items) == 0 {
+		return
+	}
+
+	cols := make([]*expression.Column, 0, len(items))
+	for _, expr := range items {
+		col, ok := expr.(*expression.Column)
+		if !ok {
+			return
+		}
+		cols = append(cols, col)
+	}
+	if len(cols) == 0 {
+		return
+	}
+
+	size, ok := cardinality.TryGetAvgRowSizeDataInDiskByRows(p.StatsInfo().HistColl, cols)
+	if !ok {
+		return
+	}
+	agg.groupByColAvgSize = size
+}
+
 func (p *PhysicalHashAgg) attach2TaskForMpp(tasks ...base.Task) base.Task {
 	ectx := p.SCtx().GetExprCtx().GetEvalCtx()
 
@@ -2359,6 +2392,7 @@ func (p *PhysicalHashAgg) attach2TaskForMpp(tasks ...base.Task) base.Task {
 		// only push down the original agg
 		proj := p.convertAvgForMPP()
 		attachPlan2Task(p, mpp)
+		setupGroupByColAvgSize(p)
 		if proj != nil {
 			attachPlan2Task(proj, mpp)
 		}
@@ -2367,6 +2401,8 @@ func (p *PhysicalHashAgg) attach2TaskForMpp(tasks ...base.Task) base.Task {
 		// TODO: when partition property is matched by sub-plan, we actually needn't do extra an exchange and final agg.
 		proj := p.convertAvgForMPP()
 		partialAgg, finalAgg := p.newPartialAggregate(kv.TiFlash, true)
+		setupGroupByColAvgSize(partialAgg)
+		setupGroupByColAvgSize(finalAgg)
 		if partialAgg == nil {
 			return base.InvalidTask
 		}
@@ -2402,6 +2438,7 @@ func (p *PhysicalHashAgg) attach2TaskForMpp(tasks ...base.Task) base.Task {
 		return newMpp
 	case MppTiDB:
 		partialAgg, finalAgg := p.newPartialAggregate(kv.TiFlash, false)
+		setupGroupByColAvgSize(partialAgg)
 		if partialAgg != nil {
 			attachPlan2Task(partialAgg, mpp)
 		}
@@ -2427,6 +2464,9 @@ func (p *PhysicalHashAgg) attach2TaskForMpp(tasks ...base.Task) base.Task {
 		if err != nil {
 			return base.InvalidTask
 		}
+		setupGroupByColAvgSize(final)
+		setupGroupByColAvgSize(middle)
+		setupGroupByColAvgSize(partial)
 
 		// partial agg proj would be null if one scalar agg cannot run in two-phase mode
 		if proj4Partial != nil {

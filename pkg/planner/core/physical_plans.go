@@ -2133,6 +2133,7 @@ func (p *basePhysicalAgg) MemoryUsage() (sum int64) {
 type PhysicalHashAgg struct {
 	basePhysicalAgg
 	tiflashPreAggMode string
+	groupByColAvgSize float64
 }
 
 func (p *PhysicalHashAgg) getPointer() *basePhysicalAgg {
@@ -2149,6 +2150,7 @@ func (p *PhysicalHashAgg) Clone(newCtx base.PlanContext) (base.PhysicalPlan, err
 	}
 	cloned.basePhysicalAgg = *base
 	cloned.tiflashPreAggMode = p.tiflashPreAggMode
+	cloned.groupByColAvgSize = p.groupByColAvgSize
 	return cloned, nil
 }
 

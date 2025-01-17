@@ -218,7 +218,7 @@ func (base basePhysicalAgg) Init(ctx base.PlanContext, stats *property.StatsInfo
 }
 
 func (base basePhysicalAgg) initForHash(ctx base.PlanContext, stats *property.StatsInfo, offset int, props ...*property.PhysicalProperty) *PhysicalHashAgg {
-	p := &PhysicalHashAgg{base, ""}
+	p := &PhysicalHashAgg{base, "", -1.0}
 	p.BasePhysicalPlan = physicalop.NewBasePhysicalPlan(ctx, plancodec.TypeHashAgg, p, offset)
 	p.SetChildrenReqProps(props)
 	p.SetStats(stats)
