@@ -2637,16 +2637,24 @@ func (p *LogicalProjection) exhaustPhysicalPlans(prop *property.PhysicalProperty
 	return ret, true, nil
 }
 
-func pushLimitOrTopNForcibly(p LogicalPlan) bool {
+func pushLimitOrTopNForcibly(p LogicalPlan, bool isPhysicalLimit) bool {
 	var meetThreshold bool
 	var preferPushDown *bool
 	switch lp := p.(type) {
 	case *LogicalTopN:
 		preferPushDown = &lp.PreferLimitToCop
-		meetThreshold = lp.Count+lp.Offset <= uint64(lp.SCtx().GetSessionVars().LimitPushDownThreshold)
+		if isPhysicalLimit {
+			// For query using orderby + limit, the physicalop can be PhysicalLimit
+			// when its corresponding logicalop is LogicalTopn.
+			// And for PhysicalLimit, it's always better to let it pushdown to tikv.
+			meetThreshold = true
+		} else {
+			meetThreshold = lp.Count+lp.Offset <= uint64(lp.SCtx().GetSessionVars().LimitPushDownThreshold)
+		}
 	case *LogicalLimit:
 		preferPushDown = &lp.PreferLimitToCop
-		meetThreshold = true // always push Limit down in this case since it has no side effect
+		// Always push Limit down in this case since it has no side effect.
+		meetThreshold = true
 	default:
 		return false
 	}
@@ -2666,7 +2674,7 @@ func pushLimitOrTopNForcibly(p LogicalPlan) bool {
 
 func (lt *LogicalTopN) getPhysTopN(prop *property.PhysicalProperty) []PhysicalPlan {
 	allTaskTypes := []property.TaskType{property.CopSingleReadTaskType, property.CopMultiReadTaskType}
-	if !pushLimitOrTopNForcibly(lt) {
+	if !pushLimitOrTopNForcibly(lt, false) {
 		allTaskTypes = append(allTaskTypes, property.RootTaskType)
 	}
 	if lt.SCtx().GetSessionVars().IsMPPAllowed() {
@@ -2693,7 +2701,7 @@ func (lt *LogicalTopN) getPhysLimits(prop *property.PhysicalProperty) []Physical
 	}
 
 	allTaskTypes := []property.TaskType{property.CopSingleReadTaskType, property.CopMultiReadTaskType}
-	if !pushLimitOrTopNForcibly(lt) {
+	if !pushLimitOrTopNForcibly(lt, true) {
 		allTaskTypes = append(allTaskTypes, property.RootTaskType)
 	}
 	ret := make([]PhysicalPlan, 0, len(allTaskTypes))
@@ -3489,7 +3497,7 @@ func (p *LogicalLimit) exhaustPhysicalPlans(prop *property.PhysicalProperty) ([]
 	}
 
 	allTaskTypes := []property.TaskType{property.CopSingleReadTaskType, property.CopMultiReadTaskType}
-	if !pushLimitOrTopNForcibly(p) {
+	if !pushLimitOrTopNForcibly(p, true) {
 		allTaskTypes = append(allTaskTypes, property.RootTaskType)
 	}
 	if p.canPushToCop(kv.TiFlash) && p.SCtx().GetSessionVars().IsMPPAllowed() {
