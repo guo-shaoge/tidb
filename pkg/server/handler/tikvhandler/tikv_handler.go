@@ -213,6 +213,8 @@ type LabelHandler struct{}
 const (
 	// OpTableRegions is the operation for getting regions of a table.
 	OpTableRegions = "regions"
+	// OpTableRegionCount is the operation for getting region count of a table.
+	OpTableRegionCount = "region-count"
 	// OpTableRanges is the operation for getting ranges of a table.
 	OpTableRanges = "ranges"
 	// OpTableDiskUsage is the operation for getting disk usage of a table.
@@ -324,6 +326,13 @@ type TableRegions struct {
 	TableID       int64                `json:"id"`
 	RecordRegions []handler.RegionMeta `json:"record_regions"`
 	Indices       []IndexRegions       `json:"indices"`
+}
+
+// TableRegionCount is the response data for getting table's region count.
+type TableRegionCount struct {
+	TableName   string `json:"name"`
+	TableID     int64  `json:"id"`
+	RegionCount int    `json:"region_count"`
 }
 
 // RangeDetail contains detail information about a particular range
@@ -1065,6 +1074,8 @@ func (h *TableHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	switch h.op {
 	case OpTableRegions:
 		h.handleRegionRequest(tableVal, w)
+	case OpTableRegionCount:
+		h.handleRegionCountRequest(tableVal, w)
 	case OpTableRanges:
 		h.handleRangeRequest(tableVal, w)
 	case OpTableDiskUsage:
@@ -1310,6 +1321,40 @@ func (h *TableHandler) handleRegionRequest(tbl table.Table, w http.ResponseWrite
 	}
 
 	handler.WriteData(w, tableRegions)
+}
+
+func (h *TableHandler) handleRegionCountRequest(tbl table.Table, w http.ResponseWriter) {
+	pi := tbl.Meta().GetPartitionInfo()
+	if pi != nil {
+		// Partitioned table.
+		data := make([]*TableRegionCount, 0, len(pi.Definitions))
+		for _, def := range pi.Definitions {
+			stats, err := h.GetPDRegionStatsCount(context.Background(), def.ID, false)
+			if err != nil {
+				handler.WriteError(w, err)
+				return
+			}
+			data = append(data, &TableRegionCount{
+				TableName:   def.Name.O,
+				TableID:     def.ID,
+				RegionCount: stats.Count,
+			})
+		}
+		handler.WriteData(w, data)
+		return
+	}
+
+	meta := tbl.Meta()
+	stats, err := h.GetPDRegionStatsCount(context.Background(), meta.ID, false)
+	if err != nil {
+		handler.WriteError(w, err)
+		return
+	}
+	handler.WriteData(w, &TableRegionCount{
+		TableName:   meta.Name.O,
+		TableID:     meta.ID,
+		RegionCount: stats.Count,
+	})
 }
 
 func createTableRanges(tblID int64, tblName string, indices []*model.IndexInfo) *TableRanges {

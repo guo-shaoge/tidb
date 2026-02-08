@@ -808,14 +808,7 @@ func (h *Helper) GetPDAddr() ([]string, error) {
 	return pdAddrs, nil
 }
 
-// GetPDRegionStats get the RegionStats by tableID from PD by HTTP API.
-func (h *Helper) GetPDRegionStats(ctx context.Context, tableID int64, noIndexStats bool) (*pd.RegionStats, error) {
-	pdCli, err := h.TryGetPDHTTPClient()
-	if err != nil {
-		return nil, err
-	}
-
-	var startKey, endKey []byte
+func getTableKeyRangeForPD(tableID int64, noIndexStats bool) (startKey, endKey []byte) {
 	if noIndexStats {
 		startKey = tablecodec.GenTableRecordPrefix(tableID)
 		endKey = kv.Key(startKey).PrefixNext()
@@ -825,8 +818,29 @@ func (h *Helper) GetPDRegionStats(ctx context.Context, tableID int64, noIndexSta
 	}
 	startKey = codec.EncodeBytes([]byte{}, startKey)
 	endKey = codec.EncodeBytes([]byte{}, endKey)
+	return startKey, endKey
+}
 
+// GetPDRegionStats get the RegionStats by tableID from PD by HTTP API.
+func (h *Helper) GetPDRegionStats(ctx context.Context, tableID int64, noIndexStats bool) (*pd.RegionStats, error) {
+	pdCli, err := h.TryGetPDHTTPClient()
+	if err != nil {
+		return nil, err
+	}
+
+	startKey, endKey := getTableKeyRangeForPD(tableID, noIndexStats)
 	return pdCli.GetRegionStatusByKeyRange(ctx, pd.NewKeyRange(startKey, endKey), false)
+}
+
+// GetPDRegionStatsCount gets region count by tableID from PD by HTTP API.
+func (h *Helper) GetPDRegionStatsCount(ctx context.Context, tableID int64, noIndexStats bool) (*pd.RegionStats, error) {
+	pdCli, err := h.TryGetPDHTTPClient()
+	if err != nil {
+		return nil, err
+	}
+
+	startKey, endKey := getTableKeyRangeForPD(tableID, noIndexStats)
+	return pdCli.GetRegionStatusByKeyRange(ctx, pd.NewKeyRange(startKey, endKey), true)
 }
 
 // GetTiFlashTableIDFromEndKey computes tableID from pd rule's endKey.
