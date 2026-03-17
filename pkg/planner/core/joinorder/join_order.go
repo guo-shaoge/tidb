@@ -331,18 +331,6 @@ func optimizeForJoinGroup(ctx base.PlanContext, group *joinGroup) (p base.Logica
 	return p, nil
 }
 
-type joinOrderDP struct {
-	JoinOrder
-}
-
-func newJoinOrderDP(_ base.PlanContext, _ *joinGroup) *joinOrderDP {
-	panic("not implement yet")
-}
-
-func (*joinOrderDP) optimize() (base.LogicalPlan, error) {
-	panic("not implement yet")
-}
-
 type joinOrderGreedy struct {
 	JoinOrder
 }
@@ -357,7 +345,7 @@ func newJoinOrderGreedy(ctx base.PlanContext, group *joinGroup) *joinOrderGreedy
 }
 
 // buildJoinByHint builds a join tree according to the leading hints.
-func (j *joinOrderGreedy) buildJoinByHint(detector *ConflictDetector, nodes []*Node) (*Node, []*Node, error) {
+func (j *JoinOrder) buildJoinByHint(detector *ConflictDetector, nodes []*Node) (*Node, []*Node, error) {
 	if len(j.group.leadingHints) == 0 {
 		return nil, nodes, nil
 	}
