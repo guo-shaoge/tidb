@@ -206,6 +206,62 @@ from t_issue65892_lookup`)
 	})
 }
 
+func TestIndexJoinInnerProjectionLosesExtraBaseColumn(t *testing.T) {
+	testkit.RunTestUnderCascades(t, func(t *testing.T, tk *testkit.TestKit, cascades, _ string) {
+		if cascades == "on" {
+			t.Skip("cascades planner does not support index join inner multi-pattern yet")
+		}
+
+		tk.MustExec("use test")
+		tk.MustExec("drop table if exists a, b, c")
+		tk.MustExec(`create table a (
+  u varchar(20),
+  q varchar(20),
+  index iu(u)
+)`)
+		tk.MustExec(`create table b (
+  u varchar(20),
+  index iu2(u)
+)`)
+		tk.MustExec(`create table c (
+  g varchar(20),
+  index ig(g)
+)`)
+
+		tk.MustExec("set @@session.tidb_enable_inl_join_inner_multi_pattern=1")
+		tk.MustExec("set @@session.tidb_opt_index_join_cost_factor=0.1")
+		tk.MustExec("set @@session.tidb_opt_hash_join_cost_factor=100")
+		tk.MustExec("set @@session.tidb_opt_merge_join_cost_factor=100")
+
+		controlSQL := `explain format = 'plan_tree'
+select /*+ INL_JOIN(x) */ 1
+from (
+  select u
+  from a
+) x
+join (
+  select u from b where u = 'u1'
+) b1 on x.u = b1.u`
+		tk.MustQuery(controlSQL).CheckContain("IndexJoin")
+
+		// The only difference from the control case is that the inner derived table now needs
+		// one extra base-table column (`a.q`) to compute `x.g`. The current build-v2 path loses
+		// that column while constructing the index-join inner task for `a`, so planning fails
+		// with "can't find column test.a.q".
+		buggySQL := `explain format = 'plan_tree'
+select /*+ INL_JOIN(x) */ 1
+from (
+  select u, json_unquote(json_extract(cast(q as json), '$.g')) as g
+  from a
+) x
+join (
+  select u from b where u = 'u1'
+) b1 on x.u = b1.u
+left join c on c.g = x.g`
+		tk.MustContainErrMsg(buggySQL, "Can't find column test.a.q")
+	})
+}
+
 func prepareIssue65886RegressionSchema(tk *testkit.TestKit) string {
 	tk.MustExec("drop view if exists issue65886_v85, issue65886_v45, issue65886_v26, issue65886_v0")
 	tk.MustExec("drop table if exists issue65886_t0, issue65886_t2, issue65886_t3, issue65886_t4")
