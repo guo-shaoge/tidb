@@ -575,6 +575,11 @@ type PlanCacheStmt struct {
 
 	BindingInfo bindinfo.BindingMatchInfo
 
+	// CachedResultFields caches the output of colNames2ResultFields.
+	// Populated on first Execute, reused on subsequent Executes.
+	// Invalidated when schema version changes in planCachePreprocess.
+	CachedResultFields []*resolve.ResultField
+
 	// the different between NormalizedSQL, NormalizedSQL4PC and StmtText:
 	//  for the query `select * from t where a>1 and b<?`, then
 	//  NormalizedSQL: select * from `t` where `a` > ? and `b` < ? --> constants are normalized to '?',

@@ -108,7 +108,14 @@ type recordSet struct {
 
 func (a *recordSet) Fields() []*resolve.ResultField {
 	if len(a.fields) == 0 {
-		a.fields = colNames2ResultFields(a.schema, a.stmt.OutputNames, a.stmt.Ctx.GetSessionVars().CurrentDB)
+		if ps := a.stmt.PsStmt; ps != nil && ps.CachedResultFields != nil {
+			a.fields = ps.CachedResultFields
+		} else {
+			a.fields = colNames2ResultFields(a.schema, a.stmt.OutputNames, a.stmt.Ctx.GetSessionVars().CurrentDB)
+			if ps != nil {
+				ps.CachedResultFields = a.fields
+			}
+		}
 	}
 	return a.fields
 }

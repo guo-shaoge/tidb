@@ -57,6 +57,7 @@ type ProcessInfo struct {
 	DiskTracker           *disk.Tracker
 	RunawayChecker        resourcegroup.RunawayChecker
 	StatsInfo             func(any) map[string]uint64
+	PlanExplainRowsGen   func(any) [][]string
 	RuntimeStatsColl      *execdetails.RuntimeStatsColl
 	User                  string
 	Digest                string
@@ -78,6 +79,14 @@ type ProcessInfo struct {
 	MaxExecutionTime uint64
 	State            uint16
 	Command          byte
+}
+
+// GetPlanExplainRows returns PlanExplainRows, computing lazily if needed.
+func (pi *ProcessInfo) GetPlanExplainRows() [][]string {
+	if pi.PlanExplainRows == nil && pi.Plan != nil && pi.PlanExplainRowsGen != nil {
+		pi.PlanExplainRows = pi.PlanExplainRowsGen(pi.Plan)
+	}
+	return pi.PlanExplainRows
 }
 
 // Clone return a shallow clone copy of this processInfo.

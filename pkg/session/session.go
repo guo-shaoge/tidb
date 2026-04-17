@@ -1440,7 +1440,12 @@ func (s *session) SetProcessInfo(sql string, t time.Time, command byte, maxExecu
 		DB:                    s.sessionVars.CurrentDB,
 		Command:               command,
 		Plan:                  p,
-		PlanExplainRows:       plannercore.GetExplainRowsForPlan(p),
+		PlanExplainRowsGen: func(plan any) [][]string {
+			if p, ok := plan.(base.Plan); ok {
+				return plannercore.GetExplainRowsForPlan(p)
+			}
+			return nil
+		},
 		RuntimeStatsColl:      s.sessionVars.StmtCtx.RuntimeStatsColl,
 		Time:                  t,
 		State:                 s.Status(),
@@ -1467,7 +1472,7 @@ func (s *session) SetProcessInfo(sql string, t time.Time, command byte, maxExecu
 	if p == nil {
 		// Store the last valid plan when the current plan is nil.
 		// This is for `explain for connection` statement has the ability to query the last valid plan.
-		if oldPi != nil && oldPi.Plan != nil && len(oldPi.PlanExplainRows) > 0 {
+		if oldPi != nil && oldPi.Plan != nil {
 			pi.Plan = oldPi.Plan
 			pi.PlanExplainRows = oldPi.PlanExplainRows
 			pi.RuntimeStatsColl = oldPi.RuntimeStatsColl

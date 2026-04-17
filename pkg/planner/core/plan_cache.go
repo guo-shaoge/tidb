@@ -149,6 +149,7 @@ func planCachePreprocess(ctx context.Context, sctx sessionctx.Context, isNonPrep
 		// schema version like prepared plan cache key
 		stmt.PointGet.Executor = nil
 		stmt.PointGet.ColumnInfos = nil
+		stmt.CachedResultFields = nil
 		// If the schema version has changed we need to preprocess it again,
 		// if this time it failed, the real reason for the error is schema changed.
 		// Example:

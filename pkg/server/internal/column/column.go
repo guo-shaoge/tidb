@@ -44,11 +44,23 @@ type Info struct {
 	Flag         uint16
 	Decimal      uint8
 	Type         uint8
+
+	cachedDumpBytes   []byte
+	cachedDumpCharset string
 }
 
 // Dump dumps Info to bytes.
 func (column *Info) Dump(buffer []byte, d *ResultEncoder) []byte {
-	return column.dump(buffer, d, false)
+	chs := d.ChsName()
+	if column.cachedDumpBytes != nil && column.cachedDumpCharset == chs {
+		return append(buffer, column.cachedDumpBytes...)
+	}
+	start := len(buffer)
+	buffer = column.dump(buffer, d, false)
+	column.cachedDumpBytes = make([]byte, len(buffer)-start)
+	copy(column.cachedDumpBytes, buffer[start:])
+	column.cachedDumpCharset = chs
+	return buffer
 }
 
 // DumpWithDefault dumps Info to bytes, including column defaults. This is used for ComFieldList responses.

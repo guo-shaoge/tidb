@@ -239,7 +239,7 @@ func (record *memoryUsageAlarm) tryRemoveRedundantRecords() {
 
 func getPlanString(info *util.ProcessInfo) string {
 	var buf strings.Builder
-	rows := info.PlanExplainRows
+	rows := info.GetPlanExplainRows()
 	buf.WriteString(fmt.Sprintf("|%v|%v|%v|%v|%v|", "id", "estRows", "task", "access object", "operator info"))
 	for _, row := range rows {
 		buf.WriteString(fmt.Sprintf("\n|%v|%v|%v|%v|%v|", row[0], row[1], row[2], row[3], row[4]))

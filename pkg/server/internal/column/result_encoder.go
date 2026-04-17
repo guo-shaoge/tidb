@@ -73,6 +73,11 @@ func NewResultEncoder(chs string) *ResultEncoder {
 	}
 }
 
+// ChsName returns the charset name of the ResultEncoder.
+func (d *ResultEncoder) ChsName() string {
+	return d.chsName
+}
+
 // Clean prevent the ResultEncoder from holding too much memory.
 func (d *ResultEncoder) Clean() {
 	d.buffer = nil
